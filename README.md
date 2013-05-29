@@ -6,6 +6,8 @@ The gro bacterial micro-colony growth specification and simulation software.
 Compilation Notes
 =================
 
+Eric successfully compiles gro on a Mac and on Windows 7. The following description is for the Mac.
+
 To compile you need:
 
   chipmunk: version 5.3.5 should work: http://chipmunk-physics.net/release/
@@ -20,7 +22,10 @@ Then:
   * Edit gro.pro and make sure the directories for the ccl and chipmunk libraries are configured for your machine.
   * Compile gro
 
-Nick got this to work on linux and sent me the following notes:
+Linux Notes
+===========
+
+Nick got this to work on ubuntu linux and sent me the following notes:
 
 I put together a minimal patch that makes gro compile fine on linux (for me, ubuntu 12.04). Here's a short summary of the changes:
 
