@@ -1,0 +1,67 @@
+\\
+\\ gro is protected by the UW OPEN SOURCE LICENSE, which is summaraize here.
+\\ Please see the file LICENSE.txt for the complete license.
+\\
+\\ THE SOFTWARE (AS DEFINED BELOW) AND HARDWARE DESIGNS (AS DEFINED BELOW) IS PROVIDED
+\\ UNDER THE TERMS OF THIS OPEN SOURCE LICENSE (“LICENSE”).  THE SOFTWARE IS PROTECTED
+\\ BY COPYRIGHT AND/OR OTHER APPLICABLE LAW.  ANY USE OF THIS SOFTWARE OTHER THAN AS
+\\ AUTHORIZED UNDER THIS LICENSE OR COPYRIGHT LAW IS PROHIBITED.
+\\
+\\ BY EXERCISING ANY RIGHTS TO THE SOFTWARE AND/OR HARDWARE PROVIDED HERE, YOU ACCEPT AND
+\\ AGREE TO BE BOUND BY THE TERMS OF THIS LICENSE.  TO THE EXTENT THIS LICENSE MAY BE
+\\ CONSIDERED A CONTRACT, THE UNIVERSITY OF WASHINGTON (“UW”) GRANTS YOU THE RIGHTS
+\\ CONTAINED HERE IN CONSIDERATION OF YOUR ACCEPTANCE OF SUCH TERMS AND CONDITIONS.
+\\
+\\ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+\\
+
+include gro
+
+chemostat(true);
+
+set_theme ( bright_theme << [ signals := { { 1, 1, 0 },  { 0, 1, 0 } } ] );
+
+dif := 0.1;
+deg := 0.1;
+
+nutrient := { signal ( dif, deg ), signal ( dif, deg ) };
+
+k1 := 1;
+k2 := 1;
+k3 := 0.1;
+k4 := 1;
+
+program p ( i ) := {
+
+  n := 1;
+  x := 0;
+  y := 0;
+  z := 0;
+  yfp := 0;
+  gfp := 0;
+
+  true : { 
+
+    emit_signal ( i, n ),
+    x := get_signal ( 1-i ),
+    y := k1 * x / ( k2 + x ),
+    n := n + dt*y,
+    z := k3 * (n/volume) / ( k4 + (n/volume) ),
+    absorb_signal ( 1-i, 500*y ),
+    set ( "ecoli_growth_rate", z ),
+    n := n - dt*z
+  }
+
+  i = 0 : { yfp := 50 * volume * ( 0.5 + n ) }  
+
+  i = 1 : { gfp := 50 * volume * ( 0.5 + n ) }  
+
+  selected : { message ( 1, "n/volume = " <> tostring(n/volume) ) }
+
+  n/volume < 0.0001 : { die() }
+
+
+};
+
+ecoli ( [ y := -5 ], program p(0) );
+ecoli ( [ y := 5 ], program p(1) );

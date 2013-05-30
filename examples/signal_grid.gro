@@ -1,0 +1,73 @@
+\\
+\\ gro is protected by the UW OPEN SOURCE LICENSE, which is summaraize here.
+\\ Please see the file LICENSE.txt for the complete license.
+\\
+\\ THE SOFTWARE (AS DEFINED BELOW) AND HARDWARE DESIGNS (AS DEFINED BELOW) IS PROVIDED
+\\ UNDER THE TERMS OF THIS OPEN SOURCE LICENSE (“LICENSE”).  THE SOFTWARE IS PROTECTED
+\\ BY COPYRIGHT AND/OR OTHER APPLICABLE LAW.  ANY USE OF THIS SOFTWARE OTHER THAN AS
+\\ AUTHORIZED UNDER THIS LICENSE OR COPYRIGHT LAW IS PROHIBITED.
+\\
+\\ BY EXERCISING ANY RIGHTS TO THE SOFTWARE AND/OR HARDWARE PROVIDED HERE, YOU ACCEPT AND
+\\ AGREE TO BE BOUND BY THE TERMS OF THIS LICENSE.  TO THE EXTENT THIS LICENSE MAY BE
+\\ CONSIDERED A CONTRACT, THE UNIVERSITY OF WASHINGTON (“UW”) GRANTS YOU THE RIGHTS
+\\ CONTAINED HERE IN CONSIDERATION OF YOUR ACCEPTANCE OF SUCH TERMS AND CONDITIONS.
+\\
+\\ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+\\
+
+
+include gro
+
+b := 20; // number of pixels in a superpixel
+
+// set up the signal grid
+set ( "signal_grid_width", 16*b );
+set ( "signal_grid_height", 16*b );
+set ( "signal_element_size", b );
+
+// declare a signal
+s := signal ( 0, 0.01 );
+
+// define a cool bitmap
+bitmap := {
+ { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+ { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+ { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+ { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+ { 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0 },
+ { 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0 },
+ { 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0 },
+ { 0, 0, 0, 1, 1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0 },
+ { 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0 },
+ { 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 0, 0 },
+ { 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0 },
+ { 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 0 },
+ { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+ { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+ { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+ { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 }
+};
+
+// write the bitmap to world as a signal
+foreach p in cross (range 16) (range 16) do
+  set_signal ( s, p[0]*b-8*b, p[1]*b-8*b, 20*bitmap[p[1]][p[0]] )
+end;
+
+// define a program that tell cells to eat the signal
+
+k1 := 0.0015;
+k2 := 0.0003;
+
+program p() := {
+
+  x := 0;
+
+  true : {
+    x := get_signal ( s ),
+    set ( "ecoli_growth_rate", k1*x ),
+    absorb_signal ( s, k2*x )
+  }
+
+};
+
+ecoli ( [ theta := 0.78 ], program p() );

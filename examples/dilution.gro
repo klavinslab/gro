@@ -1,0 +1,84 @@
+\\
+\\ gro is protected by the UW OPEN SOURCE LICENSE, which is summaraize here.
+\\ Please see the file LICENSE.txt for the complete license.
+\\
+\\ THE SOFTWARE (AS DEFINED BELOW) AND HARDWARE DESIGNS (AS DEFINED BELOW) IS PROVIDED
+\\ UNDER THE TERMS OF THIS OPEN SOURCE LICENSE (“LICENSE”).  THE SOFTWARE IS PROTECTED
+\\ BY COPYRIGHT AND/OR OTHER APPLICABLE LAW.  ANY USE OF THIS SOFTWARE OTHER THAN AS
+\\ AUTHORIZED UNDER THIS LICENSE OR COPYRIGHT LAW IS PROHIBITED.
+\\
+\\ BY EXERCISING ANY RIGHTS TO THE SOFTWARE AND/OR HARDWARE PROVIDED HERE, YOU ACCEPT AND
+\\ AGREE TO BE BOUND BY THE TERMS OF THIS LICENSE.  TO THE EXTENT THIS LICENSE MAY BE
+\\ CONSIDERED A CONTRACT, THE UNIVERSITY OF WASHINGTON (“UW”) GRANTS YOU THE RIGHTS
+\\ CONTAINED HERE IN CONSIDERATION OF YOUR ACCEPTANCE OF SUCH TERMS AND CONDITIONS.
+\\
+\\ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+\\
+
+
+include gro
+
+set ( "dt", 0.1 );
+
+program dilute(m) := {
+
+  gfp := m;
+
+};
+
+program report() := {
+
+  needs gfp;
+
+  selected : { message ( 1, tostring(id) <> ": " <> tostring ( gfp / volume ) ) }
+
+};
+
+program make_gfp ( k1, k2, m ) := {
+
+  gfp := m;
+
+  rate ( k1 ) : { gfp := gfp + 1 }
+  rate ( k2 * gfp ) : { gfp := gfp - 1 }
+
+};
+
+program output(delta) := {
+
+  needs gfp;
+  p := [ t := 0, s := 0 ];
+
+  true : {
+    p.t := p.t + dt,
+    p.s := p.s + dt
+  }
+
+  p.s >= delta : {
+    print ( id, ", ", p.t, ", ", gfp / volume, "\n" ),
+    p.s := 0
+  }
+  
+};
+
+// 
+// PROGRAM 1
+// just dilution, with mouse click events handled
+// 
+program p1() := dilute(1000) + report() sharing gfp;
+
+// 
+// PROGRAM 2
+// production and dilution, with mouse click events handled
+// 
+alpha := - log ( 0.5 ) / 20.0;
+k1 := 100 * alpha;
+program p2() := make_gfp ( k1, 0.001, 0 ) + report() sharing gfp;
+
+// 
+// PROGRAM 3
+// production and dilution, with mouse click events handled and data written
+// to standard output
+// 
+program p3() := ( make_gfp ( k1, 0.001, 0 ) + report() sharing gfp ) + output(5*dt) sharing gfp;
+
+ecoli ( [ x := 0, y := 0 ], program p1() ); // try p2() or p3() as well

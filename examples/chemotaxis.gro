@@ -1,0 +1,66 @@
+\\
+\\ gro is protected by the UW OPEN SOURCE LICENSE, which is summaraize here.
+\\ Please see the file LICENSE.txt for the complete license.
+\\
+\\ THE SOFTWARE (AS DEFINED BELOW) AND HARDWARE DESIGNS (AS DEFINED BELOW) IS PROVIDED
+\\ UNDER THE TERMS OF THIS OPEN SOURCE LICENSE (“LICENSE”).  THE SOFTWARE IS PROTECTED
+\\ BY COPYRIGHT AND/OR OTHER APPLICABLE LAW.  ANY USE OF THIS SOFTWARE OTHER THAN AS
+\\ AUTHORIZED UNDER THIS LICENSE OR COPYRIGHT LAW IS PROHIBITED.
+\\
+\\ BY EXERCISING ANY RIGHTS TO THE SOFTWARE AND/OR HARDWARE PROVIDED HERE, YOU ACCEPT AND
+\\ AGREE TO BE BOUND BY THE TERMS OF THIS LICENSE.  TO THE EXTENT THIS LICENSE MAY BE
+\\ CONSIDERED A CONTRACT, THE UNIVERSITY OF WASHINGTON (“UW”) GRANTS YOU THE RIGHTS
+\\ CONTAINED HERE IN CONSIDERATION OF YOUR ACCEPTANCE OF SUCH TERMS AND CONDITIONS.
+\\
+\\ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+\\
+
+
+include gro
+
+set ( "dt", 0.1 );
+
+s := signal ( 1, 0.1 );
+
+program p() := {
+
+  set ( "ecoli_growth_rate", 0.0 );
+  m1 := 0;
+  m2 := 0;
+  t := 0;
+  mode := 0;
+
+  t > 0.25 : {
+    t := 0,
+    m1 := m2,
+    m2 := get_signal(s)
+  }
+
+  mode = 0 : { run ( 8 ) }
+  mode = 1 : { tumble ( 800 ) }
+
+  mode = 0 & m2 < m1 & rate ( 0.5 ) : { mode := 1 }
+  mode = 0 & m2 > m1 & rate ( 0.01 ) : { mode := 1 }
+
+  mode = 1 & rate ( 0.01 ) : { mode := 0 }
+
+  true : { t := t + dt }
+
+};
+
+program main() := {
+
+  true : { set_signal ( s, 0, 0, 100 ) }
+
+};
+
+foreach q in range 50 do
+
+  ecoli ( [ 
+      x := rand(600)-300, 
+      y := rand(600)-300, 
+      theta := 0.01*rand(628) ], 
+    program p() )
+
+end;
+

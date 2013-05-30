@@ -1,0 +1,68 @@
+\\
+\\ gro is protected by the UW OPEN SOURCE LICENSE, which is summaraize here.
+\\ Please see the file LICENSE.txt for the complete license.
+\\
+\\ THE SOFTWARE (AS DEFINED BELOW) AND HARDWARE DESIGNS (AS DEFINED BELOW) IS PROVIDED
+\\ UNDER THE TERMS OF THIS OPEN SOURCE LICENSE (“LICENSE”).  THE SOFTWARE IS PROTECTED
+\\ BY COPYRIGHT AND/OR OTHER APPLICABLE LAW.  ANY USE OF THIS SOFTWARE OTHER THAN AS
+\\ AUTHORIZED UNDER THIS LICENSE OR COPYRIGHT LAW IS PROHIBITED.
+\\
+\\ BY EXERCISING ANY RIGHTS TO THE SOFTWARE AND/OR HARDWARE PROVIDED HERE, YOU ACCEPT AND
+\\ AGREE TO BE BOUND BY THE TERMS OF THIS LICENSE.  TO THE EXTENT THIS LICENSE MAY BE
+\\ CONSIDERED A CONTRACT, THE UNIVERSITY OF WASHINGTON (“UW”) GRANTS YOU THE RIGHTS
+\\ CONTAINED HERE IN CONSIDERATION OF YOUR ACCEPTANCE OF SUCH TERMS AND CONDITIONS.
+\\
+\\ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+\\
+
+
+// This example was devised by Rehana Rodrigues and refined by Kevin Oishi.
+
+include gro
+
+set ( "dt", 0.1 );
+
+k1 := 0.001;	// wave emit rate
+tr := 6;	// refraction period
+td := 3.3;	// detection time
+
+se := 100;	// signal emit magnitude
+sd := 0.1;	// signal detect threshold for wave
+st := 0.2;	// signal detect threshold for edge detection
+
+ahl := signal (1,1); // This command declares a new signal
+
+// 
+// The edge detection specification
+// 
+program edge(k1,tr,td) := { 
+
+  rfp := 0;
+  edge := false;
+  r := [ t := tr ];
+
+  rate(k1) : { // randomly start a wave
+    emit_signal ( ahl, se )
+  }
+
+  r.t > tr & get_signal ( ahl ) > sd : { // propogate waves
+    emit_signal ( ahl, se ),
+    r.t := 0
+  }
+
+  td-dt < r.t & r.t <= td : { // check edge condition
+   edge := get_signal ( ahl ) < st
+  }
+
+  edge : { rfp := rfp + 1 } // report edge condition
+  !edge & rfp > 0 : { rfp := rfp - 1 }
+
+  true : { // for timing purposes
+    r.t := r.t + dt
+  }
+
+};
+
+// associate the program with a cell
+ecoli ( [ x:= 0, y:= 0 ], program edge(k1, tr, td) );
+

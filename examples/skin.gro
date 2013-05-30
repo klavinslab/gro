@@ -1,0 +1,62 @@
+\\
+\\ gro is protected by the UW OPEN SOURCE LICENSE, which is summaraize here.
+\\ Please see the file LICENSE.txt for the complete license.
+\\
+\\ THE SOFTWARE (AS DEFINED BELOW) AND HARDWARE DESIGNS (AS DEFINED BELOW) IS PROVIDED
+\\ UNDER THE TERMS OF THIS OPEN SOURCE LICENSE (“LICENSE”).  THE SOFTWARE IS PROTECTED
+\\ BY COPYRIGHT AND/OR OTHER APPLICABLE LAW.  ANY USE OF THIS SOFTWARE OTHER THAN AS
+\\ AUTHORIZED UNDER THIS LICENSE OR COPYRIGHT LAW IS PROHIBITED.
+\\
+\\ BY EXERCISING ANY RIGHTS TO THE SOFTWARE AND/OR HARDWARE PROVIDED HERE, YOU ACCEPT AND
+\\ AGREE TO BE BOUND BY THE TERMS OF THIS LICENSE.  TO THE EXTENT THIS LICENSE MAY BE
+\\ CONSIDERED A CONTRACT, THE UNIVERSITY OF WASHINGTON (“UW”) GRANTS YOU THE RIGHTS
+\\ CONTAINED HERE IN CONSIDERATION OF YOUR ACCEPTANCE OF SUCH TERMS AND CONDITIONS.
+\\
+\\ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+\\
+
+
+include gro
+
+set ( "dt", 0.2 );
+
+UNDEC := 0;
+LEADER := 1;
+FOLLOWER := 2;
+
+s := signal ( 1, 0.25 );
+
+program p() := {
+
+  p := [ m := UNDEC, t := 0 ];
+  gfp := 0;
+  rfp := 0;
+
+  // break symmetry
+  p.m = UNDEC & just_divided & !daughter : { p.m := LEADER }
+  p.m = UNDEC & daughter : { p.m := FOLLOWER }
+
+  // the leader emits a mater control signal
+  p.m = LEADER : {
+    set ( "ecoli_growth_rate", 0 ),
+    emit_signal ( s, 100 ),
+    gfp := 100
+  }
+
+  p.m = FOLLOWER : { // this just makes cells a pretty color
+    rfp := 50*volume / ( 1 + get_signal(s) )
+  }
+
+  // followers die if they are too far away from the leader
+  // the time check is to make sure the first daughter doesn't
+  // die before the leader can send out the signal
+  p.m = FOLLOWER & get_signal ( s ) < 0.01 & p.t > 50 : {
+    die()
+  }
+
+  true : { p.t := p.t + dt }
+
+};
+
+ecoli ( [], program p() );
+  

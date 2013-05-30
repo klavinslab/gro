@@ -1,0 +1,54 @@
+\\
+\\ gro is protected by the UW OPEN SOURCE LICENSE, which is summaraize here.
+\\ Please see the file LICENSE.txt for the complete license.
+\\
+\\ THE SOFTWARE (AS DEFINED BELOW) AND HARDWARE DESIGNS (AS DEFINED BELOW) IS PROVIDED
+\\ UNDER THE TERMS OF THIS OPEN SOURCE LICENSE (“LICENSE”).  THE SOFTWARE IS PROTECTED
+\\ BY COPYRIGHT AND/OR OTHER APPLICABLE LAW.  ANY USE OF THIS SOFTWARE OTHER THAN AS
+\\ AUTHORIZED UNDER THIS LICENSE OR COPYRIGHT LAW IS PROHIBITED.
+\\
+\\ BY EXERCISING ANY RIGHTS TO THE SOFTWARE AND/OR HARDWARE PROVIDED HERE, YOU ACCEPT AND
+\\ AGREE TO BE BOUND BY THE TERMS OF THIS LICENSE.  TO THE EXTENT THIS LICENSE MAY BE
+\\ CONSIDERED A CONTRACT, THE UNIVERSITY OF WASHINGTON (“UW”) GRANTS YOU THE RIGHTS
+\\ CONTAINED HERE IN CONSIDERATION OF YOUR ACCEPTANCE OF SUCH TERMS AND CONDITIONS.
+\\
+\\ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+\\
+
+
+include gro
+
+chemostat(true);
+
+iptg := 0;
+
+program p() := {
+
+  gfp := 0;
+
+  rate ( 1 + 10 * iptg / ( 1 + iptg ) ) : { gfp := gfp + 1 };
+  rate ( 0.001 * gfp ) : { gfp := gfp - 1 };
+
+};
+
+program main() := {
+
+  t := 0;
+
+  true : { t := t + dt };
+
+  t > 50 : {
+    t := 0,
+    iptg := 1.0 - iptg,
+    clear_messages(1),
+    message ( 1, "IPTG at " <> tostring(iptg) <> "uM/L" )
+  };
+
+};
+
+
+ecoli ( [], program p() );
+
+
+
+

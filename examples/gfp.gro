@@ -1,0 +1,113 @@
+\\
+\\ gro is protected by the UW OPEN SOURCE LICENSE, which is summaraize here.
+\\ Please see the file LICENSE.txt for the complete license.
+\\
+\\ THE SOFTWARE (AS DEFINED BELOW) AND HARDWARE DESIGNS (AS DEFINED BELOW) IS PROVIDED
+\\ UNDER THE TERMS OF THIS OPEN SOURCE LICENSE (“LICENSE”).  THE SOFTWARE IS PROTECTED
+\\ BY COPYRIGHT AND/OR OTHER APPLICABLE LAW.  ANY USE OF THIS SOFTWARE OTHER THAN AS
+\\ AUTHORIZED UNDER THIS LICENSE OR COPYRIGHT LAW IS PROHIBITED.
+\\
+\\ BY EXERCISING ANY RIGHTS TO THE SOFTWARE AND/OR HARDWARE PROVIDED HERE, YOU ACCEPT AND
+\\ AGREE TO BE BOUND BY THE TERMS OF THIS LICENSE.  TO THE EXTENT THIS LICENSE MAY BE
+\\ CONSIDERED A CONTRACT, THE UNIVERSITY OF WASHINGTON (“UW”) GRANTS YOU THE RIGHTS
+\\ CONTAINED HERE IN CONSIDERATION OF YOUR ACCEPTANCE OF SUCH TERMS AND CONDITIONS.
+\\
+\\ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+\\
+
+
+include gro
+
+set ( "dt", 0.01 );
+
+// 
+// RNA Production
+// --------------
+// http://bionumbers.hms.harvard.edu/bionumber.aspx?s=y&id=100060&ver=22&hlid=55609
+// rna transcription rate: 85 nt per second
+// gfp mRNA plus non-coding parts is about 800 nt
+// 9.4 mRNA / s => 69.4 mRNA / min
+// 
+// I presume these numbers are for an average size bacterium (2.35 fL) and that smaller
+// bugs make RNA more slowly. So we want 2.35 * alpha_r = 69.4 or 
+// 
+alpha_r := 69.4 / 2.35;
+message ( 0, "alpha_r = " <> tostring(alpha_r) <> " mRNA / min / fL" );
+
+// 
+// RNA Degradation
+// ---------------
+// http://bionumbers.hms.harvard.edu/bionumber.aspx?s=y&id=104324&ver=9&hlid=55608
+// RNA lifetime, about 3.69 minutes. This seems to be per RNA, so we don't need to
+// take the volume into account (which seems sketchy)
+// 
+beta_r := - log ( 0.5 ) / 3.69;
+message ( 0, "beta_r = " <> tostring(beta_r) <> " / min" );
+
+// 
+// Protein Production
+// ------------------
+// http://bionumbers.hms.harvard.edu/bionumber.aspx?s=y&id=104870&ver=4&hlid=55616
+// It takes about 82 seconds to translate a whole protein of about the four times the
+// size of GFP. So let's say it takes 20 seconds per protein so that's 3 per minute per
+// mRNA. 
+// 
+// 
+alpha_p := 3.0;
+message ( 0, "alpha_r = " <> tostring(alpha_p) <> "/ min" );
+
+// 
+// Protein Degradation
+// -------------------
+// I can't find good numbers on this, other than our experience that GFP lasts a *long* time. 
+// So I'll choose a really number.
+// 
+beta_p := 0.01;
+message ( 0, "beta_r = " <> tostring(beta_p) <> " / min" );
+
+// 
+// Rendering saturation
+// --------------------
+// These parameters seem to settle in at around 1050 gfp molecules per unit volume.
+// So let's somewhere around that so we can see some noise.
+// 
+set ( "gfp_saturation_max", 1000 );
+set ( "gfp_saturation_min", 800 );
+
+// 
+// mRNA -> GFP Program
+// 
+program gfp() := {
+
+  mRNA := 0;    
+  gfp := 0;     
+
+  rate ( alpha_r * volume ) : { mRNA := mRNA + 1 };
+  rate ( beta_r * mRNA ) :    { mRNA := mRNA - 1 };
+  rate ( alpha_p * mRNA ) :   { gfp := gfp + 1 };
+  rate ( beta_p * gfp ) :     { gfp := gfp - 1 };
+
+};
+
+// 
+// Mouse handling
+// 
+program report() := {
+
+  needs gfp, mRNA;
+
+  selected : { message ( 1,
+          "cell "  <> tostring(id)
+     <> ": mRNA="  <> tostring(mRNA) 
+     <> ", GFP="   <> tostring(gfp)
+     <> ", [GFP]=" <> tostring(gfp/volume) ) }
+
+};
+
+// 
+// Associate the program with a cell
+// 
+ecoli ( [ x := 0, y := 0 ], program gfp() + report() sharing mRNA, gfp );
+
+
+

@@ -1,0 +1,94 @@
+\\
+\\ gro is protected by the UW OPEN SOURCE LICENSE, which is summaraize here.
+\\ Please see the file LICENSE.txt for the complete license.
+\\
+\\ THE SOFTWARE (AS DEFINED BELOW) AND HARDWARE DESIGNS (AS DEFINED BELOW) IS PROVIDED
+\\ UNDER THE TERMS OF THIS OPEN SOURCE LICENSE (“LICENSE”).  THE SOFTWARE IS PROTECTED
+\\ BY COPYRIGHT AND/OR OTHER APPLICABLE LAW.  ANY USE OF THIS SOFTWARE OTHER THAN AS
+\\ AUTHORIZED UNDER THIS LICENSE OR COPYRIGHT LAW IS PROHIBITED.
+\\
+\\ BY EXERCISING ANY RIGHTS TO THE SOFTWARE AND/OR HARDWARE PROVIDED HERE, YOU ACCEPT AND
+\\ AGREE TO BE BOUND BY THE TERMS OF THIS LICENSE.  TO THE EXTENT THIS LICENSE MAY BE
+\\ CONSIDERED A CONTRACT, THE UNIVERSITY OF WASHINGTON (“UW”) GRANTS YOU THE RIGHTS
+\\ CONTAINED HERE IN CONSIDERATION OF YOUR ACCEPTANCE OF SUCH TERMS AND CONDITIONS.
+\\
+\\ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+\\
+
+include gro
+
+set ("dt",0.05);
+//set ("ecoli_growth_rate",0.00);
+
+rS := signal (0.3,1); //1.5,0.05
+gS := signal (3,0.5);//1.5,0.05
+
+program g1() := {
+
+rfp := 0;
+gfp := 0;
+cfp := 0;
+
+rate(0.05*rfp) : {rfp := rfp-1};
+
+p :=[state := 0, thRS := 1, thGS := 0.5]; // 1 1 
+
+(p.state = 0) & rate(0.01) & (get_signal(gS) < p.thGS) : { // 0.001
+	p.state := 1;
+}; 
+
+(p.state = 1) : { 
+	emit_signal (rS,70); //10
+	emit_signal (gS,100);
+	set ("ecoli_growth_rate",0.001);
+	gfp := 100;
+};
+
+(p.state = 0) & ( get_signal (rS) > p.thRS ) : {	
+	p.state := 3;
+};
+ 
+ (p.state = 3) : {
+ 	rfp := rfp + 1;
+ 	p.state := if ( get_signal (rS) < p.thRS) then 0 else 3 end;
+ };
+		
+};
+
+
+
+program report() := {
+	needs rfp;
+	selected : {
+		message(1,tostring(id) <> " rfp: " <> tostring(rfp) <> " rS:" <> tostring(get_signal(rS)) <> " gS:" <> tostring(get_signal(gS)))
+	};
+
+};
+
+program movie ( T, path ) := {
+
+  t := 0;
+  n := 0;
+
+  true : { t := t + dt};
+
+  t > T : { 
+    snapshot ( path <> "cheetahstat3_" <> tostring(n) <> ".tif" );
+    n := n + 1;
+    t := 0;
+  };
+
+};
+
+program p() := g1() + report() sharing gfp,cfp,rfp;
+program pp() := p() + movie(5,"./") sharing gfp,cfp,rfp;
+
+
+ecoli([x := 0,y:=0], program p());
+
+//program p() := g1() + report() sharing rfp;
+//foreach q in range 900 do
+//	ecoli ([x := rand(400)-200, y := rand(400)-200], program p())
+//end;
+start();
+	
