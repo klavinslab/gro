@@ -1,0 +1,138 @@
+//////////////////////////////////////////////////////////////////////////////////////
+// 
+// gro is protected by the UW OPEN SOURCE LICENSE, which is summaraize here.
+// Please see the file LICENSE.txt for the complete license.
+// 
+// THE SOFTWARE (AS DEFINED BELOW) AND HARDWARE DESIGNS (AS DEFINED BELOW) IS PROVIDED
+// UNDER THE TERMS OF THIS OPEN SOURCE LICENSE (“LICENSE”).  THE SOFTWARE IS PROTECTED
+// BY COPYRIGHT AND/OR OTHER APPLICABLE LAW.  ANY USE OF THIS SOFTWARE OTHER THAN AS
+// AUTHORIZED UNDER THIS LICENSE OR COPYRIGHT LAW IS PROHIBITED.
+// 
+// BY EXERCISING ANY RIGHTS TO THE SOFTWARE AND/OR HARDWARE PROVIDED HERE, YOU ACCEPT AND
+// AGREE TO BE BOUND BY THE TERMS OF THIS LICENSE.  TO THE EXTENT THIS LICENSE MAY BE
+// CONSIDERED A CONTRACT, THE UNIVERSITY OF WASHINGTON (“UW”) GRANTS YOU THE RIGHTS
+// CONTAINED HERE IN CONSIDERATION OF YOUR ACCEPTANCE OF SUCH TERMS AND CONDITIONS.
+//  
+// TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+// 
+// 
+
+include standard
+
+// Cell types
+internal unit ecoli ( [ ... ], 'a ) "ecoli";
+
+// Signals
+internal int signal ( real, real ) "signal";
+internal unit set_signal ( int, real, real, real ) "set_signal";
+internal unit set_signal_rect ( int, real, real, real, real, real ) "set_signal_rect";
+internal real get_signal ( int ) "get_signal";
+internal unit emit_signal ( int, real ) "emit_signal";
+internal unit absorb_signal ( int, real ) "absorb_signal";
+internal unit reaction ( int list, int list, real ) "reaction";
+
+// World control
+internal unit message ( int, string ) "message";
+internal unit clear_messages ( int ) "clear_messages";
+internal unit reset () "reset";
+internal unit stop () "stop";
+internal unit start () "start";
+internal real stats ( string ) "stats";
+internal unit snapshot ( string ) "snapshot";
+internal unit dump ( int ) "dump";
+internal real time() "time";
+
+// Themes
+dark_theme := [
+
+  background := "#000000",
+  ecoli_edge := "#444444",
+  ecoli_selected := "#880000",
+
+  signals := {
+    { 1, 0, 1 },
+    { 0, 1, 1 },
+    { 1, 1, 0 },
+    { 1, 0, 0 },
+    { 0, 1, 0 },
+    { 0, 0, 1 }
+  },
+
+  chemostat := "#444499",
+  message := "#ffffff",
+  mouse := "#ffffff"
+
+];
+
+bright_theme := [
+
+  background := "#ffffff",
+  ecoli_edge := "#777777",
+  ecoli_selected := "#ff0000",
+
+  signals := {
+    { 1, 0, 1 },
+    { 0, 1, 1 },
+    { 1, 1, 0 },
+    { 1, 0, 0 },
+    { 0, 1, 0 },
+    { 0, 0, 1 }
+  },
+
+  chemostat := "#999999",
+  message := "#999999",
+  mouse := "#000000"
+
+];
+
+internal unit set_theme ( [ ... ] ) "set_theme";
+set_theme ( bright_theme );
+internal unit zoom ( real ) "zoom";
+
+// Signals
+
+// Chemostat
+internal unit chemostat ( bool ) "chemostat";
+
+
+// Misc
+internal unit die() "die";
+internal unit divide() "divide";
+internal unit run ( real ) "run";
+internal unit tumble ( real ) "tumble";
+
+// Parameter Values
+internal unit set ( string, real ) "set";
+
+// default global parameters
+set ( "dt", 0.02 );
+set ( "gfp_saturation_min", 0.0 );
+set ( "gfp_saturation_max", 50.0 );
+set ( "rfp_saturation_min", 0.0 );
+set ( "rfp_saturation_max", 50.0 );
+set ( "yfp_saturation_min", 0.0 );
+set ( "yfp_saturation_max", 50.0 );
+set ( "cfp_saturation_min", 0.0 );
+set ( "cfp_saturation_max", 50.0 );
+
+set ( "chemostat_width",  200 );
+set ( "chemostat_height", 200 );
+
+set ( "throttle", 0.0 ); 
+set ( "population_max", 1000 );
+
+// signal parameters. Note: if you redefine these, do so before you
+// declare any signals. The parameters can't be changed after signals are declared,
+// and they apply to all of signals you declare.
+set ( "signal_grid_width", 800 );
+set ( "signal_grid_height", 800 );
+set ( "signal_element_size", 5 );
+
+// default paramters for E. coli
+set ( "ecoli_growth_rate", 0.0346574 );   // reactions/min
+set ( "ecoli_init_size", 1.57 );          // fL
+set ( "ecoli_division_size_mean", 3.14 ); // fL
+set ( "ecoli_division_size_var", 0.005 ); // fL
+set ( "ecoli_diameter", 1.0 );            // fL
+set ( "ecoli_scale", 10.0 );              // pixels/um
+

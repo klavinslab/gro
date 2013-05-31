@@ -1,0 +1,175 @@
+// 
+// gro is protected by the UW OPEN SOURCE LICENSE, which is summaraize here.
+// Please see the file LICENSE.txt for the complete license.
+// 
+// THE SOFTWARE (AS DEFINED BELOW) AND HARDWARE DESIGNS (AS DEFINED BELOW) IS PROVIDED
+// UNDER THE TERMS OF THIS OPEN SOURCE LICENSE (“LICENSE”).  THE SOFTWARE IS PROTECTED
+// BY COPYRIGHT AND/OR OTHER APPLICABLE LAW.  ANY USE OF THIS SOFTWARE OTHER THAN AS
+// AUTHORIZED UNDER THIS LICENSE OR COPYRIGHT LAW IS PROHIBITED.
+// 
+// BY EXERCISING ANY RIGHTS TO THE SOFTWARE AND/OR HARDWARE PROVIDED HERE, YOU ACCEPT AND
+// AGREE TO BE BOUND BY THE TERMS OF THIS LICENSE.  TO THE EXTENT THIS LICENSE MAY BE
+// CONSIDERED A CONTRACT, THE UNIVERSITY OF WASHINGTON (“UW”) GRANTS YOU THE RIGHTS
+// CONTAINED HERE IN CONSIDERATION OF YOUR ACCEPTANCE OF SUCH TERMS AND CONDITIONS.
+//  
+// TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+// 
+
+// ///////////////////////////////////////////// 
+// standard functions
+// 
+
+internal unit print ( ... ) "print";   // prints to the console
+internal unit clear() "clear";         // clears the console
+internal unit cprint ( ... ) "cprint"; // prints to standard out
+internal int fopen ( string, string ) "fopen";   // opens a file for writing. mode = "w" erases old contents, mode = "a" appends old contents
+internal unit fprint ( int, ... ) "fprint";  // writes the the file specified by the first argument (which should be obtained with fopen)
+
+internal unit skip () "skip";
+internal unit exit () "exit";
+internal int atoi ( string ) "atoi";
+internal real atof ( string ) "atof";
+internal string tostring ( 'a ) "tostring";
+internal int length ( 'a list ) "length";
+internal 'b list map_aux ( 'a -> 'b, 'a list ) "map";
+internal real sumlist_aux ( 'a list ) "sumlist_aux";
+fun map f L . map_aux ( f, L );
+
+// ///////////////////////////////////////////// 
+// math
+// 
+
+pi := 3.1415927;
+
+internal real sin ( real ) "sin";
+internal real cos ( real ) "cos";
+internal real tan ( real ) "tan";
+
+internal real asin ( real ) "asin";
+internal real acos ( real ) "acos";
+internal real atan ( real, real ) "atan";
+
+internal real sinh ( real ) "sinh";
+internal real cosh ( real ) "cosh";
+internal real tanh ( real ) "tanh";
+
+internal real asinh ( real ) "asinh";
+internal real acosh ( real ) "acosh";
+internal real atanh ( real ) "atanh";
+
+internal real log ( real ) "log";
+internal real log10 ( real )"log10";
+
+internal real ceil ( real ) "ceil";
+internal real floor ( real ) "floor";
+
+internal real sqrt ( real ) "sqrt";
+internal int rand ( int ) "rand";
+internal unit srand ( int ) "srand"; // seeds with the time if argument is <= 0
+
+fun rate k . k * dt > rand(100000) / 100000.0;
+
+///////////////////////////////////////////////
+// lists
+// 
+
+// 
+// reverses the list x
+// 
+fun rev x .
+  if x = {} 
+    then {} 
+    else rev (tail x) # { head x }
+  end;
+
+// 
+// a function for zipping two lists together
+// 
+fun zip A B .
+  if A != {} & B != {} 
+    then { head A, head B } @ zip (tail A) (tail B)
+    else {}
+  end;
+
+// 
+// makes a list of n elements all of which are equal to default
+fun makelist n default .
+  if n <= 0
+    then {}
+    else default @ ( makelist (n-1) default )
+  end;
+
+// 
+// sums a list of numbers
+// 
+fun sumlist vals . sumlist_aux ( vals );
+
+// 
+// makes a table of elements by mapping f onto the list { n, n+1, ..., m-1, m }
+// 
+fun table f n m .
+  if ( n > m ) then {}
+  else
+    if n = m then { f n }
+    else ( f n ) @ table f (n+1) m
+    end
+  end;
+
+// 
+// tests for membership in a list
+// 
+fun member x L .
+  if L = {} then
+    false
+  else
+    if x = head L 
+      then true
+      else member x (tail L)
+    end
+  end;
+
+// 
+// removes element x from L
+// 
+fun remove x L .
+  if L = {} then
+    {}
+  else
+    if x = head L then
+      remove x ( tail L )
+    else
+      (head L) @ ( remove x ( tail L ) )
+    end
+  end;
+
+// 
+// forms the cross product of two lists (taken as sets)
+// 
+fun cross A B .
+  if A = {}
+    then {}
+    else ( map ( \ x . { head A, x } ) B ) # ( cross ( tail A ) B )
+  end;
+
+// 
+// makes the list { 0, 1, ..., n-1 }
+// 
+fun range n . table ( \i . i ) 0 (n-1);
+
+// 
+// takes a list { x1, x2, ... } and returns { { x1 }, { x2 }, ... }
+// 
+fun tocol v . map ( \ x . { x } ) v;
+
+// 
+// returns L with x in for L[i] -- user must check list bounds!
+// 
+fun replace L i x . 
+  if L = {} 
+    then {}
+    else if i = 0
+      then x @ (tail L)
+      else head L @ replace (tail L) (i-1) x
+    end
+  end;
+
