@@ -1,0 +1,65 @@
+New in beta.5
+--------------------------------------------------------------------------------
+* New command: zoom(z) sets the gui's zoom level.
+* time() returns the current world time
+* dump(fp) writes the id, position, orientation, volume, and reporter values for
+  each cell to a .csv file
+* Save Colony Information from the File menu calls dump as well.
+
+New in beta.4
+--------------------------------------------------------------------------------
+
+* Reactions among signals can be declared with, for example, reaction ( {A,B},{C}, 1.0 ),
+  which represents the reaction A+B->C. Here, A, B and C must be already delcared as signals.
+  See the example spatial_oscillations.gro for a cool demo.
+* You can now zoom in and out!
+* Use set ( "population_max", n ) to change the maximum number of cells.
+* Use the menu item Simulation->Increase Population Limit or command-M to increase
+  the limit on the number of cells by 100.
+* Use, for example, ecoli ( [ volume := 2.0 ], program p() ) to initialize the
+  volume of an ecoli cell.
+* Change the signal grid size and extent with set and "signal_grid_width",
+  "signal_grid_height", "signal_element_size".
+* The extent of the signal area is now indicated graphically in the gui by
+  cross hatches.
+* To run without the gui, invoke grong (which stands for gro, no gui), from the
+  command line. grong is compiled without linking to Qt, so it is small.
+* Examples of how to call grong from Mathematica are now included in the extras
+  directory.
+
+New in beta.3
+--------------------------------------------------------------------------------
+* Minor	bug fixes
+
+New in beta.2
+--------------------------------------------------------------------------------
+* Finished porting all functionality of the old gui (exemplified in
+version a.5) to the new Qt gui.
+* Except -n does not work anymore.
+* Now works with Windows!
+* File I/O via fopen and fprint.
+* Turn on chemostat mode with chemostat(true|false) command.
+* Chemostat width and height are settable parameters.
+
+New in beta.1 (Mac only)
+--------------------------------------------------------------------------------
+* New gui with buttons, separate work thread
+* Releases are now in .dmg files
+* The executable is now stuck in a Mac OS X .app bundle and has a pretty icon
+* Themes are now settable in gro -- see gro.gro for examples
+* print() now prints to the console -- and you can use html tags in what you print.
+
+New in a.5
+--------------------------------------------------------------------------------
+
+* Now there's a changelog!
+* Command line now available via ARGV, ARGC.
+* New built in function: ( map_to_cells expr end ) returns expr evaluated for each cell.
+  See examples/maptocells.gro.
+* New keyword: ( foreach i in L do expr end ). See examples/foreach.gro.
+* Default parameters are settable outside a cell and initialized in include/gro.gro.
+  Also, many parameters now have "ecoli_" prefixes, to pave the way
+  for cell-type specific parameters.
+* You can now start the simulation automatically with start().
+* run and tumble!
+* The -n option (after the filename) starts gro without the gui.

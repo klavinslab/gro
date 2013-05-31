@@ -1,0 +1,15 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file>icons/open.png</file>
+        <file>icons/reload.png</file>
+        <file>icons/start.png</file>
+        <file>icons/step.png</file>
+        <file>icons/stop.png</file>
+        <file>icons/zoom_in.png</file>
+        <file>icons/zoom_out.png</file>
+    </qresource>
+    <qresource prefix="/images">
+        <file>error.tiff</file>
+        <file>error.png</file>
+    </qresource>
+</RCC>
