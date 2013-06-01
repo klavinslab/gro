@@ -81,7 +81,7 @@ void Gui::open ( void ) {
     fileName = QFileDialog::getOpenFileName (
                          this,
                          tr("Open a .gro file"),
-                         directory.absolutePath() + "/examples",
+                         directory.absolutePath(),
                          tr("Gro files (*.gro)")
                        );
 
