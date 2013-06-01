@@ -9,7 +9,7 @@
         <file>icons/zoom_out.png</file>
     </qresource>
     <qresource prefix="/images">
-        <file>error.tiff</file>
-        <file>error.png</file>
+        <file>icons/error.tiff</file>
+        <file>icons/error.png</file>
     </qresource>
 </RCC>
