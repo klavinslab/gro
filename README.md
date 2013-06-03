@@ -10,10 +10,11 @@ Eric successfully compiles gro on a Mac and on Windows 7. The following descript
 
 To compile you need:
 
-1. chipmunk: version 5.3.5 should work: http://chipmunk-physics.net/release/
-2. Qt Creator (last tested on v2.70 with Qt v5.02): http://qt.digia.com/product/developer-tools/ or just qmake
+1. Qt Creator (last tested on v2.70 with Qt v5.02): http://qt.digia.com/product/developer-tools/ or just qmake
+2. chipmunk: version 5.3.5 should work: http://chipmunk-physics.net/release/
+3. ccl: https://github.com/klavinslab/ccl
  
-Then, from within Qt, open three separate projects: chipmunk, ccl, and gro.
+From within Qt Creator, open three separate projects: chipmunk, ccl, and gro.
 
 Then:
 
