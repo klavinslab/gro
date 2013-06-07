@@ -19,6 +19,7 @@
 
 #include "Micro.h"
 #include "EColi.h"
+#include "Yeast.h"
 #include "Programs.h"
 
 static gro_Program * current_gro_program = NULL;
@@ -91,6 +92,59 @@ Value * new_ecoli ( std::list<Value *> * args, Scope * s ) {
   return new Value(Value::UNIT);
 
 }
+
+
+Value * new_yeast ( std::list<Value *> * args, Scope * s ) {
+
+  std::list<Value *>::iterator i = args->begin();
+  Value * settings = *i; i++;
+
+  ASSERT ( args->size() == 2 );
+
+  Program * prog = (*i)->program_value()->copy(); // this copy is deleted in ~Cell?
+  //printf ( ">> prog = %x in new_ecoli\n", prog );
+
+  World * world = current_gro_program->get_world();
+
+  float x = 0, y = 0, theta = 0, vol;
+
+  if ( settings->get_type() == Value::RECORD ) {
+
+    if ( settings->getField ( "x" ) )
+      x = settings->getField ( "x" )->real_value();
+
+    if ( settings->getField ( "y" ) )
+      y = settings->getField ( "y" )->real_value();
+
+    if ( settings->getField ( "theta" ) )
+      theta = settings->getField ( "theta" )->real_value();
+
+    if ( settings->getField ( "volume" ) )
+      vol = settings->getField ( "volume" )->real_value();
+    else
+      vol = 1.0;
+
+  } else {
+
+    fprintf ( stderr, "First argument to 'yeast' should be a record\n" );
+    exit ( -1 );
+
+  }
+
+  Yeast * c = new Yeast ( world, x, y, theta, vol, false );
+
+  current_cell = c;
+  c->set_gro_program ( prog ); // prog is deleted if/when the cell is deleted in ~Cell
+  world->add_cell ( c );
+  prog->init_params ( current_gro_program->get_scope() );
+  prog->init ( current_gro_program->get_scope() );
+  current_cell = NULL;
+
+  return new Value(Value::UNIT);
+
+}
+
+
 
 
 Value * new_signal ( std::list<Value *> * args, Scope * s ) {
@@ -842,6 +896,7 @@ void register_gro_functions ( void ) {
 
   // Cell types
   register_ccl_function ( "ecoli", new_ecoli );
+  register_ccl_function ( "yeast", new_yeast );
 
   // Signals
   register_ccl_function ( "signal",        new_signal );

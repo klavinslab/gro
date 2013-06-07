@@ -22,6 +22,11 @@
 #include <QFileDialog>
 #include "gui.h"
 #include "ui_gui.h"
+#include <unistd.h>
+
+#define GetCurrentDir getcwd
+
+char cCurrentPath[FILENAME_MAX];
 
 Gui::Gui(int ac, char **av, QWidget *parent) :
     QMainWindow(parent),
@@ -73,6 +78,15 @@ void Gui::about ( void ) {
     console.insertHtml ( "Programmed by Eric Klavins, University of Washington, Seattle, WA, USA<br />" );
     console.insertHtml ( "Copyright &copy; 2011-2012, University of Washington (GNU V. 2)<br />" );
     console.insertHtml ( "See <a href=\"http://depts.washington.edu/soslab/gro/\">http://depts.washington.edu/soslab/gro</a> for more information.<br />" );
+
+    // set directory for C++ functions like fopen
+    // NOTE: Here is probably the wrong place for this code.
+    chdir("../../..");
+    GetCurrentDir(cCurrentPath, sizeof(cCurrentPath));
+    cCurrentPath[sizeof(cCurrentPath) - 1] = '\0'; /* not really required */
+    char buf[1000];
+    sprintf (buf,"Working directory: %s", cCurrentPath);
+    console.insertHtml(buf);
 
 }
 

@@ -1,0 +1,12 @@
+include gro
+
+program p() := {
+
+  skip();
+
+  gfp := 10000;
+
+};
+
+yeast ( [], program p() );
+

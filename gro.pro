@@ -51,7 +51,8 @@ SOURCES += main.cpp\
     Gro.cpp \
     GroPainter.cpp \
     Cell.cpp \
-    reaction.cpp
+    reaction.cpp \
+    Yeast.cpp
 
 HEADERS  += gui.h \
     GroThread.h \
@@ -64,7 +65,8 @@ HEADERS  += gui.h \
     Theme.h \
     EColi.h \
     Cell.h \
-    ui_gui.h
+    ui_gui.h \
+    Yeast.h
 
 contains ( CONFIG, nogui ) {
   SOURCES -= GroThread.cpp GroWidget.cpp GroPainter.cpp gui.cpp Themes.cpp
@@ -113,7 +115,8 @@ OTHER_FILES += \
     examples/spots.gro \
     examples/spatial_oscillations.gro \
     examples/symbiosis.gro \
-    LICENSE.txt
+    LICENSE.txt \
+    examples/yeast_example.gro
 
 !contains ( CONFIG, nogui ) {
   RESOURCES += icons.qrc

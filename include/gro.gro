@@ -21,6 +21,7 @@ include standard
 
 // Cell types
 internal unit ecoli ( [ ... ], 'a ) "ecoli";
+internal unit yeast ( [ ... ], 'a ) "yeast";
 
 // Signals
 internal int signal ( real, real ) "signal";
@@ -135,4 +136,9 @@ set ( "ecoli_division_size_mean", 3.14 ); // fL
 set ( "ecoli_division_size_var", 0.005 ); // fL
 set ( "ecoli_diameter", 1.0 );            // fL
 set ( "ecoli_scale", 10.0 );              // pixels/um
+
+// default parameters for Yeast
+set ( "yeast_growth_rate", 0.015 );
+set ( "yeast_division_size_mean", 1.0 );
+set ( "yeast_division_size_variance", 0.0001 );
 
