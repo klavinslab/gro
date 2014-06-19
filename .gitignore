@@ -1,0 +1,5 @@
+# objects and archives
+Ingore*.[oa]
+
+# ignore user settings file
+gro.pro.user

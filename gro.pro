@@ -78,8 +78,8 @@ contains ( CONFIG, nogui ) {
 }
 
 macx {
-  LIBS += -L../build-ccl-Desktop_Qt_5_0_2_clang_64bit-Release/ -lccl -L../chipmunk/src -lchip
-  PRE_TARGETDEPS += ../build-ccl-Desktop_Qt_5_0_2_clang_64bit-Release/libccl.a
+  LIBS += -L../build-ccl -lccl -L../chipmunk/src -lchip
+  PRE_TARGETDEPS += ../build-ccl/libccl.a
   DEPENDPATH += ../chipmunk/
   INCLUDEPATH += ../ccl/ ../chipmunk/include/chipmunk/
   # mytarget.commands = COPY EXAMPLES FILE TO APPLICATION DIRECTORY
@@ -116,7 +116,9 @@ OTHER_FILES += \
     examples/spatial_oscillations.gro \
     examples/symbiosis.gro \
     LICENSE.txt \
-    examples/yeast_example.gro
+    examples/yeast_example.gro \
+    .gitignore \
+    doc/compile_mac.md
 
 !contains ( CONFIG, nogui ) {
   RESOURCES += icons.qrc

@@ -19,7 +19,7 @@
 
 #ifndef NOGUI
 
-#include <QtGui/QApplication>
+#include <QApplication>
 #include <QDir>
 #include "gui.h"
 

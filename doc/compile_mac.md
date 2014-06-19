@@ -12,7 +12,7 @@ Follow the instructions at https://help.github.com/articles/set-up-git. Note tha
 
 ## Get and compile CCL
 
-Make a directory to put code, open a terminal, and cd to that directory. Then clone ccl:
+Make a directory to put code. I'll assume it's called Code. Open a terminal, and cd to the Code directory. Then clone ccl:
 
     git clone https://github.com/klavinslab/ccl.git
     
@@ -20,10 +20,34 @@ Open Qt and choose "Open Project. Navigate to ccl/ccl.pro and open it. Use only 
 
     build-ccl-Desktop_Qt_5_3_0_clang_64bit-Debug
 
-in the same directory as ccl, filled with object files and the archive libccl.a. This .a file is the ccl library required by gro.
+in the Code directory, filled with object files and the archive libccl.a. This .a file is the ccl library required by gro. So that it is easy
+to find later, make a link to the directory:
+
+    ln -s build-ccl-Desktop_Qt_5_3_0_clang_64bit-Debug build-ccl
+
+## Get and compile chipmunk.
+
+Go to https://chipmunk-physics.net/release/Chipmunk-5.x/ and get version 5.3.5.
+Note that although newer versions of chipmunk are available, they don't seem to work.
+
+Unpack the chipmunk directory in your Code directory and make sure the directory is called chipmunk.
+You will then need a chipmunk.pro file. The one I use is in Code/gro/useful. So from within your Code directory, do
+
+    cp gro/useful/chipmunk.pro chipmunk
+
+Then from within Qt, open the Code/chipmunk/chipmunk.pro and compile chipmunk. The result should be a new build directory in Code with a file called libchipmunk.a in it.
+Make an easier link to the build file with:
+
+     ln -s build-chipmunk build-chipmunk-Desktop_Qt_5_3_0_clang_64bit-Debug/
 
 ## Get and compile gro
 
 In your code directory again, clone gro:
+
+    git clone https://github.com/klavinslab/gro.git
+
+Open Code/gro/gro.pro in Qt, set it to the active project, and build gro.
+
+
 
     
