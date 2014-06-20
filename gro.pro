@@ -125,7 +125,9 @@ OTHER_FILES += \
     LICENSE.txt \
     examples/yeast_example.gro \
     .gitignore \
-    doc/compile_mac.md
+    doc/compile_mac.md \
+    doc/compile_linux.md \
+    README.md
 
 !contains ( CONFIG, nogui ) {
   RESOURCES += icons.qrc

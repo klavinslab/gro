@@ -46,7 +46,7 @@ In your code directory again, clone gro:
 
     git clone https://github.com/klavinslab/gro.git
 
-Open Code/gro/gro.pro in Qt, set it to the active project, and build gro.
+Open Code/gro/gro.pro in Qt, set it to the active project, build gro and run it. You should be able to open a file in the examples file in the build directory and run it.
 
 
 
