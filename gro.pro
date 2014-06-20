@@ -25,6 +25,13 @@ macx {
   QMAKE_CXXFLAGS += -fast
 }
 
+makelinks.commands += echo Making links in $$OUT_PWD;
+makelinks.commands += ln -s examples $${OUT_PWD}/examples;
+makelinks.commands += ln -s include $${OUT_PWD}/include;
+
+QMAKE_EXTRA_TARGETS += makelinks
+POST_TARGETDEPS += makelinks
+
 contains ( CONFIG, nogui ) {
   QT -= core gui
   TARGET = grong
