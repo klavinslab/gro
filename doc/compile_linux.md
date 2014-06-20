@@ -1,28 +1,3 @@
-gro
-===
-
-The gro bacterial micro-colony growth specification and simulation software.
-
-Compilation Notes
------------------
-
-Eric successfully compiles gro on a Mac and on Windows 7. The following description is for the Mac.
-
-To compile you need:
-
-1. Qt Creator (last tested on v2.70 with Qt v5.02): http://qt.digia.com/product/developer-tools/ or just qmake
-2. chipmunk: version 5.3.5 should work: http://chipmunk-physics.net/release/
-3. ccl: https://github.com/klavinslab/ccl
- 
-From within Qt Creator, open three separate projects: chipmunk, ccl, and gro.
-
-Then:
-
-1. Compile chipmunk. You need a static library, so you might need to tweak the chipmunk qmake file to give you this.
-2. Compile ccl
-3. Edit gro.pro and make sure the directories for the ccl and chipmunk libraries are configured for your machine.
-4. Compile gro
-
 Linux Notes
 -----------
 
