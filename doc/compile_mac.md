@@ -1,10 +1,10 @@
-# Compiling gro on Mac OS v10.9.2 with Qt v5.0.3
+# Compiling gro on Mac OS v10.9.2 with Qt v5.2.1
 
 ## Get Qt
 
 Go to http://qt-project.org/downloads to obtain and install the open source version of Qt via the online installer.
 
-Select Gt 5.2 and Tools. 
+Select Qt 5.3 and Tools.
 
 ## Download and install git
 
