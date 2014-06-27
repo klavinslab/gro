@@ -38,8 +38,8 @@ You will then need a chipmunk.pro file. The one I use is in Code/gro/useful. So 
 Then from within Qt, open the Code/chipmunk/chipmunk.pro and compile chipmunk. The result should be a new build directory in Code with a file called libchipmunk.a in it.
 Make an easier link to the build file with:
 
-     ln -s build-chipmunk build-chipmunk-Desktop_Qt_5_3_0_clang_64bit-Debug/
-
+     ln -s build-chipmunk-Desktop_Qt_5_3_0_clang_64bit-Debug/ build-chipmunk 
+ 
 ## Get and compile gro
 
 In your code directory again, clone gro:
