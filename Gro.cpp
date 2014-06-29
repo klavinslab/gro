@@ -19,7 +19,7 @@
 
 #include "Micro.h"
 #include "EColi.h"
-#include "Yeast.h"
+//#include "Yeast.h"
 #include "Programs.h"
 
 static gro_Program * current_gro_program = NULL;
@@ -93,7 +93,7 @@ Value * new_ecoli ( std::list<Value *> * args, Scope * s ) {
 
 }
 
-
+/*
 Value * new_yeast ( std::list<Value *> * args, Scope * s ) {
 
   std::list<Value *>::iterator i = args->begin();
@@ -144,7 +144,7 @@ Value * new_yeast ( std::list<Value *> * args, Scope * s ) {
 
 }
 
-
+*/
 
 
 Value * new_signal ( std::list<Value *> * args, Scope * s ) {
@@ -896,7 +896,7 @@ void register_gro_functions ( void ) {
 
   // Cell types
   register_ccl_function ( "ecoli", new_ecoli );
-  register_ccl_function ( "yeast", new_yeast );
+  //register_ccl_function ( "yeast", new_yeast );
 
   // Signals
   register_ccl_function ( "signal",        new_signal );

@@ -10,7 +10,7 @@
 CONFIG += warn_off
 
 contains ( CONFIG, nogui ) {
-  QMAKE_CXXFLAGS += -DNOGUI -std=c99
+  QMAKE_CXXFLAGS += -DNOGUI #-std=gnu99
 }
 
 win32 {
@@ -59,7 +59,7 @@ SOURCES += main.cpp\
     GroPainter.cpp \
     Cell.cpp \
     reaction.cpp \
-    Yeast.cpp
+    #Yeast.cpp
 
 HEADERS  += gui.h \
     GroThread.h \
