@@ -26,8 +26,8 @@ macx {
 }
 
 makelinks.commands += echo Making links in $$OUT_PWD;
-makelinks.commands += ln -s examples $${OUT_PWD}/examples;
-makelinks.commands += ln -s include $${OUT_PWD}/include;
+makelinks.commands += ln -s -f examples $${OUT_PWD}/examples;
+makelinks.commands += ln -s -f include $${OUT_PWD}/include;
 
 QMAKE_EXTRA_TARGETS += makelinks
 POST_TARGETDEPS += makelinks
@@ -127,7 +127,8 @@ OTHER_FILES += \
     .gitignore \
     doc/compile_mac.md \
     doc/compile_linux.md \
-    README.md
+    README.md \
+    examples/geometry.gro
 
 !contains ( CONFIG, nogui ) {
   RESOURCES += icons.qrc

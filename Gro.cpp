@@ -264,6 +264,34 @@ Value * get_signal ( std::list<Value *> * args, Scope * s ) {
 
 }
 
+Value * geometry ( std::list<Value *> * args, Scope * s ) {
+
+  World * world = current_gro_program->get_world();
+  std::list<Value *>::iterator i = args->begin();
+
+  Value * g = new Value ( Value::RECORD );
+
+  if ( current_cell != NULL ) {
+
+      Value * g = new Value ( Value::RECORD );
+      g->addField ( "x",     new Value ( current_cell->get_x()     ) );
+      g->addField ( "y",     new Value ( current_cell->get_y()     ) );
+      g->addField ( "theta", new Value ( current_cell->get_theta() ) );
+
+      return g;
+
+  } else {
+
+    printf ( "Warning: Tried to get signal value from outside a cell program. No action taken\n" );
+    g->addField ( "x",     new Value ( 0.0 ) );
+    g->addField ( "y",     new Value ( 0.0 ) );
+    g->addField ( "theta", new Value ( 0.0 ) );
+    return g;
+
+  }
+
+}
+
 Value * emit_signal ( std::list<Value *> * args, Scope * s ) {
 
   World * world = current_gro_program->get_world();
@@ -919,12 +947,15 @@ void register_gro_functions ( void ) {
   register_ccl_function ( "dump",           gro_dump );
   register_ccl_function ( "time",           gro_time );
 
-  // Misc
+  // Cell Specific
   register_ccl_function ( "die", die );
   register_ccl_function ( "divide", force_divide );
-  register_ccl_function ( "map_to_cells", map_to_cells );
+  register_ccl_function ( "geometry", geometry );
   register_ccl_function ( "run", run );
   register_ccl_function ( "tumble", tumble );
+
+  // Misc
+  register_ccl_function ( "map_to_cells", map_to_cells );
   register_ccl_function ( "print", gro_print );
   register_ccl_function ( "clear", gro_clear );
   register_ccl_function ( "chemostat", chemostat );

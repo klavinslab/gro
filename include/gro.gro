@@ -21,7 +21,7 @@ include standard
 
 // Cell types
 internal unit ecoli ( [ ... ], 'a ) "ecoli";
-internal unit yeast ( [ ... ], 'a ) "yeast";
+// internal unit yeast ( [ ... ], 'a ) "yeast";
 
 // Signals
 internal int signal ( real, real ) "signal";
@@ -96,11 +96,12 @@ internal unit zoom ( real ) "zoom";
 internal unit chemostat ( bool ) "chemostat";
 
 
-// Misc
+// Cell specific
 internal unit die() "die";
 internal unit divide() "divide";
 internal unit run ( real ) "run";
 internal unit tumble ( real ) "tumble";
+internal [ ... ] geometry() "geometry";
 
 // Parameter Values
 internal unit set ( string, real ) "set";
