@@ -6,7 +6,7 @@ The gro bacterial micro-colony growth specification and simulation software.
 Documentation
 ===
 
-See the (Wiki)[https://github.com/klavinslab/gro/wiki] for the documentation. It is slowly being ported over from (here)[http://depts.washington.edu/soslab/gro/docview.html]. 
+See the [Wiki](https://github.com/klavinslab/gro/wiki) for the documentation. It is slowly being ported over from [here](http://depts.washington.edu/soslab/gro/docview.html). 
 
 Compiling
 ===
