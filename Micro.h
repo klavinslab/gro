@@ -87,6 +87,10 @@ class Signal {
   inline float get_dh ( void ) { return dh; }
   inline float get_val ( int i, int j ) { return sig[i][j]; }
 
+  inline std::vector< std::vector<float> > * get_signal_matrix ( void ) {
+      return &sig;
+  }
+
  private:
 
   int numx, numy;
@@ -200,6 +204,7 @@ class World {
   float get_signal_value ( Cell * c, int i );
   void emit_signal ( Cell * c, int i, float ds );
   void absorb_signal ( Cell * c, int i, float ds );
+  std::vector< std::vector<float> > * get_signal_matrix ( int i );
   int num_signals ( void ) { return signal_list.size(); }
   inline void set_signal ( int i, float x, float y, float c ) { signal_list[i]->set(x,y,c); }
   inline void set_signal_rect ( int i, float x1, float y1, float x2, float y2, float c ) { signal_list[i]->set_rect(x1,y1,x2,y2,c); }

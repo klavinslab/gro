@@ -1,0 +1,34 @@
+include gro
+
+set_theme ( bright_theme << [ signals := { { 1,0,0 }, { 0,1,0 } } ] );
+
+X := signal ( 1.0, 0.0 );
+Y := signal ( 1.0, 0.0 );
+
+reaction ( {X,Y}, {Y,Y}, 5 );
+reaction ( {X}, {X,X}, 5 );
+reaction ( {Y}, {}, 5 );
+
+foreach i in range 100 do {
+    set_signal ( X, rand(800)-400, rand(800)-400, 1 ),
+    set_signal ( Y, rand(800)-400, rand(800)-400, 1 )
+} end;
+
+FILEX := fopen ( "/tmp/signalX.txt", "w" );
+FILEY := fopen ( "/tmp/signalY.txt", "w" );
+
+program main() := {
+
+  s := 0;
+
+  s > 5 : {
+    fprint ( FILEX, tostring(get_signal_matrix(X)) ),
+    fprint ( FILEY, tostring(get_signal_matrix(Y)) ),
+    stop()
+  }
+
+  true : {
+    s := s + dt
+  }
+
+};

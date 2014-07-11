@@ -448,6 +448,11 @@ void World::absorb_signal ( Cell * c, int i, float ds ) {
 
 }
 
+std::vector< std::vector<float> > * World::get_signal_matrix ( int i ) {
+
+  return signal_list[i]->get_signal_matrix();
+
+}
 
 void World::print ( void ) {
 

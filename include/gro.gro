@@ -31,6 +31,7 @@ internal real get_signal ( int ) "get_signal";
 internal unit emit_signal ( int, real ) "emit_signal";
 internal unit absorb_signal ( int, real ) "absorb_signal";
 internal unit reaction ( int list, int list, real ) "reaction";
+internal real list list get_signal_matrix ( int ) "get_signal_matrix";
 
 // World control
 internal unit message ( int, string ) "message";

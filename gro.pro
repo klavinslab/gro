@@ -129,7 +129,8 @@ OTHER_FILES += \
     doc/compile_linux.md \
     README.md \
     examples/geometry.gro \
-    examples/barriers.gro
+    examples/barriers.gro \
+    examples/signal_dump.gro
 
 !contains ( CONFIG, nogui ) {
   RESOURCES += icons.qrc
