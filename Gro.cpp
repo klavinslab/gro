@@ -146,6 +146,10 @@ Value * new_yeast ( std::list<Value *> * args, Scope * s ) {
 
 */
 
+/////////////////////////////////////////////////////////////////////////////////////////////
+// SIGNALLING
+// INTERNAL GRO FUNCTIONS
+//
 
 Value * new_signal ( std::list<Value *> * args, Scope * s ) {
 
@@ -264,6 +268,45 @@ Value * get_signal ( std::list<Value *> * args, Scope * s ) {
 
 }
 
+Value * emit_signal ( std::list<Value *> * args, Scope * s ) {
+
+  World * world = current_gro_program->get_world();
+  std::list<Value *>::iterator i = args->begin();
+
+  Value * n = *i; i++;
+  Value * ds = *i;
+
+  if ( current_cell != NULL )
+    world->emit_signal ( current_cell, n->int_value(), ds->num_value() );
+  else
+    printf ( "Warning: Tried to emit signal from outside a cell program. No action taken\n" );
+
+  return new Value ( Value::UNIT );
+
+}
+
+Value * absorb_signal ( std::list<Value *> * args, Scope * s ) {
+
+  World * world = current_gro_program->get_world();
+  std::list<Value *>::iterator i = args->begin();
+
+  Value * n = *i; i++;
+  Value * ds = *i;
+
+  if ( current_cell != NULL )
+    world->absorb_signal ( current_cell, n->int_value(), ds->num_value() );
+  else
+    printf ( "Warning: Tried to absorb signal from outside a cell program. No action taken\n" );
+
+  return new Value ( Value::UNIT );
+
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+// CELL SPECIFIC (EXCEPT SIGNALLING)
+// INTERNAL GRO FUNCTIONS
+//
+
 Value * geometry ( std::list<Value *> * args, Scope * s ) {
 
   World * world = current_gro_program->get_world();
@@ -292,39 +335,6 @@ Value * geometry ( std::list<Value *> * args, Scope * s ) {
 
 }
 
-Value * emit_signal ( std::list<Value *> * args, Scope * s ) {
-
-  World * world = current_gro_program->get_world();
-  std::list<Value *>::iterator i = args->begin();
-
-  Value * n = *i; i++;
-  Value * ds = *i;
-
-  if ( current_cell != NULL ) 
-    world->emit_signal ( current_cell, n->int_value(), ds->num_value() );
-  else
-    printf ( "Warning: Tried to emit signal from outside a cell program. No action taken\n" );
-
-  return new Value ( Value::UNIT );
-
-}
-
-Value * absorb_signal ( std::list<Value *> * args, Scope * s ) {
-
-  World * world = current_gro_program->get_world();
-  std::list<Value *>::iterator i = args->begin();
-
-  Value * n = *i; i++;
-  Value * ds = *i;
-
-  if ( current_cell != NULL ) 
-    world->absorb_signal ( current_cell, n->int_value(), ds->num_value() );
-  else
-    printf ( "Warning: Tried to absorb signal from outside a cell program. No action taken\n" );
-
-  return new Value ( Value::UNIT );
-
-}
 
 Value * die ( std::list<Value *> * args, Scope * s ) {
 
@@ -339,6 +349,23 @@ Value * die ( std::list<Value *> * args, Scope * s ) {
   return new Value ( Value::UNIT );
 
 }
+
+Value * force_divide ( std::list<Value *> * args, Scope * s ) {
+
+  if ( current_cell != NULL ) {
+
+    current_cell->force_divide();
+
+  } else fprintf ( stderr, "Warning: divide() called from outside a cell\n" );
+
+  return new Value ( Value::UNIT );
+
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+// SIMULATION CONTROL
+// INTERNAL GRO FUNCTIONS
+//
 
 Value * reset ( std::list<Value *> * args, Scope * s ) {
 
@@ -361,6 +388,8 @@ Value * start ( std::list<Value *> * args, Scope * s ) {
   return new Value ( Value::UNIT );
 
 }
+
+
 
 Value * set_param ( std::list<Value *> * args, Scope * s ) {
 
@@ -410,6 +439,19 @@ Value * world_stats ( std::list<Value *> * args, Scope * s ) {
 
 }
 
+Value * gro_time ( std::list<Value *> * args, Scope * s ) {
+
+    World * world = current_gro_program->get_world();
+
+    return new Value ( world->get_time() );
+
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+// MESSAGES AND IMAGES
+// INTERNAL GRO FUNCTIONS
+//
+
 Value * message ( std::list<Value *> * args, Scope * s ) {
 
   World * world = current_gro_program->get_world();
@@ -451,17 +493,139 @@ Value * snapshot ( std::list<Value *> * args, Scope * s ) {
 
 }
 
-Value * force_divide ( std::list<Value *> * args, Scope * s ) {
+Value * zoom ( std::list<Value *> * args, Scope * s ) {
 
-  if ( current_cell != NULL ) {
+  World * world = current_gro_program->get_world();
+  std::list<Value *>::iterator i = args->begin();
 
-    current_cell->force_divide();
+  float z = (*i)->num_value();
 
-  } else fprintf ( stderr, "Warning: divide() called from outside a cell\n" );
+  if ( z > 0 ) {
+
+      world->set_zoom ( z );
+
+  }
 
   return new Value ( Value::UNIT );
 
 }
+
+Value * set_theme ( std::list<Value *> * args, Scope * s ) {
+
+#ifndef NOGUI
+
+  ASSERT ( args->size() == 1 );
+
+  std::list<Value *>::iterator i = args->begin();
+  current_gro_program->get_world()->set_theme ( *i );
+
+#endif
+
+  return new Value ( Value::UNIT );
+
+}
+
+Value * gro_print ( std::list<Value *> * args, Scope * s ) {
+
+  std::list<Value *>::iterator i;
+  std::stringstream strm;
+
+  for ( i=args->begin(); i!=args->end(); i++ ) {
+      if ( (*i)->get_type() == Value::STRING )
+          strm << (*i)->string_value();
+      else
+        strm << (*i)->tostring();
+  }
+
+#ifndef NOGUI
+  current_gro_program->get_world()->emit_message(strm.str());
+#else
+  std::cout << strm.str();
+#endif
+
+  return new Value(Value::UNIT);
+
+}
+
+Value * gro_clear ( std::list<Value *> * args, Scope * s ) {
+
+  std::string str = "";
+  current_gro_program->get_world()->emit_message(str,true);
+  return new Value(Value::UNIT);
+
+}
+
+Value * gro_fopen ( std::list<Value *> * args, Scope * s ) {
+
+    World * world = current_gro_program->get_world();
+    std::list<Value *>::iterator i = args->begin();
+    Value * name = *i; i++;
+    Value * mod = *i;
+
+    FILE * f = fopen ( name->string_value().c_str(), mod->string_value().c_str() );
+
+    if ( f ) {
+
+        world->fileio_list.push_back(f);
+        return new Value ( (int) world->fileio_list.size() - 1 );
+
+    } else {
+
+        return new Value(-1);
+
+    }
+
+}
+
+Value * gro_fprint ( std::list<Value *> * args, Scope * s ) {
+
+    World * world = current_gro_program->get_world();
+    std::list<Value *>::iterator i = args->begin();
+    int index = (*i)->int_value(); i++;
+
+    if ( 0 <= index && index < world->fileio_list.size() ) {
+
+        std::stringstream strm;
+
+        for ( ; i!=args->end(); i++ ) {
+            if ( (*i)->get_type() == Value::STRING )
+                strm << (*i)->string_value();
+            else
+                strm << (*i)->tostring();
+        }
+
+        fprintf ( world->fileio_list[index], strm.str().c_str() );
+        fflush ( world->fileio_list[index] );
+    }
+
+    return new Value ( Value::UNIT );
+
+}
+
+Value * gro_dump ( std::list<Value *> * args, Scope * s ) {
+
+    World * world = current_gro_program->get_world();
+    std::list<Value *>::iterator i = args->begin();
+    int index = (*i)->int_value(); i++;
+
+    if ( 0 <= index && index < world->fileio_list.size() ) {
+
+        world->dump(world->fileio_list[index]);
+        fflush ( world->fileio_list[index] );
+
+    }
+
+    return new Value ( Value::UNIT );
+
+}
+
+
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+// MICROFLUIDICS
+// INTERNAL GRO FUNCTIONS
+//
 
 Value * chemostat ( std::list<Value *> * args, Scope * s ) {
 
@@ -503,6 +667,11 @@ Value * map_to_cells (  std::list<Value *> * args, Scope * s ) {
   return world->map_to_cells ( expression );
 
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////
+// CHEMOTAXIS
+// INTERNAL GRO FUNCTIONS
+//
 
 Value * run ( std::list<Value *> * args, Scope * s ) {
 
@@ -563,23 +732,6 @@ Value * tumble ( std::list<Value *> * args, Scope * s ) {
   } else
 
     printf ( "Warning: Tried to emit signal from outside a cell program. No action taken\n" );
-
-  return new Value ( Value::UNIT );
-
-}
-
-Value * zoom ( std::list<Value *> * args, Scope * s ) {
-
-  World * world = current_gro_program->get_world();
-  std::list<Value *>::iterator i = args->begin();
-
-  float z = (*i)->num_value();
-
-  if ( z > 0 ) {
-
-      world->set_zoom ( z );
-
-  }
 
   return new Value ( Value::UNIT );
 
@@ -799,122 +951,6 @@ std::string gro_Program::name ( void ) const {
 
 }
 
-Value * set_theme ( std::list<Value *> * args, Scope * s ) {
-
-#ifndef NOGUI
-
-  ASSERT ( args->size() == 1 );
-
-  std::list<Value *>::iterator i = args->begin();
-  current_gro_program->get_world()->set_theme ( *i );
-
-#endif
-
-  return new Value ( Value::UNIT );
-
-}
-
-Value * gro_print ( std::list<Value *> * args, Scope * s ) {
-
-  std::list<Value *>::iterator i;
-  std::stringstream strm;
-
-  for ( i=args->begin(); i!=args->end(); i++ ) {
-      if ( (*i)->get_type() == Value::STRING )
-          strm << (*i)->string_value();
-      else
-        strm << (*i)->tostring();
-  }
-
-#ifndef NOGUI
-  current_gro_program->get_world()->emit_message(strm.str());
-#else
-  std::cout << strm.str();
-#endif
-
-  return new Value(Value::UNIT);
-
-}
-
-Value * gro_clear ( std::list<Value *> * args, Scope * s ) {
-
-  std::string str = "";
-  current_gro_program->get_world()->emit_message(str,true);
-  return new Value(Value::UNIT);
-
-}
-
-Value * gro_fopen ( std::list<Value *> * args, Scope * s ) {
-
-    World * world = current_gro_program->get_world();
-    std::list<Value *>::iterator i = args->begin();
-    Value * name = *i; i++;
-    Value * mod = *i;
-
-    FILE * f = fopen ( name->string_value().c_str(), mod->string_value().c_str() );
-
-    if ( f ) {
-
-        world->fileio_list.push_back(f);
-        return new Value ( (int) world->fileio_list.size() - 1 );
-
-    } else {
-
-        return new Value(-1);
-
-    }
-
-}
-
-Value * gro_fprint ( std::list<Value *> * args, Scope * s ) {
-
-    World * world = current_gro_program->get_world();
-    std::list<Value *>::iterator i = args->begin();
-    int index = (*i)->int_value(); i++;
-
-    if ( 0 <= index && index < world->fileio_list.size() ) {
-
-        std::stringstream strm;
-
-        for ( ; i!=args->end(); i++ ) {
-            if ( (*i)->get_type() == Value::STRING )
-                strm << (*i)->string_value();
-            else
-                strm << (*i)->tostring();
-        }
-
-        fprintf ( world->fileio_list[index], strm.str().c_str() );
-        fflush ( world->fileio_list[index] );
-    }
-
-    return new Value ( Value::UNIT );
-
-}
-
-Value * gro_dump ( std::list<Value *> * args, Scope * s ) {
-
-    World * world = current_gro_program->get_world();
-    std::list<Value *>::iterator i = args->begin();
-    int index = (*i)->int_value(); i++;
-
-    if ( 0 <= index && index < world->fileio_list.size() ) {
-
-        world->dump(world->fileio_list[index]);
-        fflush ( world->fileio_list[index] );
-
-    }
-
-    return new Value ( Value::UNIT );
-
-}
-
-Value * gro_time ( std::list<Value *> * args, Scope * s ) {
-
-    World * world = current_gro_program->get_world();
-
-    return new Value ( world->get_time() );
-
-}
 
 void register_gro_functions ( void ) {
 

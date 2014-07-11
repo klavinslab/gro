@@ -7,7 +7,6 @@ fprint(FILE,"{");
 
 program p() := {
 
-  gfp := 1000;
   g := geometry();
 
   mode = 1 : {
@@ -21,28 +20,27 @@ program main() := {
 
   L := {};
   s := 0;
-  t := 0;
 
   s >= 1 & mode = 0 : {
     mode := 1
   }
 
   data != {} : {
-    fprint ( FILE, "{" <> tostring(t) <> "," <> tostring(data) <> "},\n" ),
+    fprint ( FILE, "{" <> tostring(time()) <> "," <> tostring(data) <> "},\n" ),
     data := {},
     mode := 0,
     s := 0
   }
 
+  time() > 180 : {
+    fprint(FILE,"{" <> tostring(time()) <> "," <> tostring(data) <> "}}"),
+    stop()
+  }
+
   true : {
-    t := t + dt,
     s := s + dt
   }
 
-  t > 180 : {
-    fprint(FILE,"{" <> tostring(t) <> "," <> tostring(data) <> "}}"),
-    stop()
-  }
 
 };
 
