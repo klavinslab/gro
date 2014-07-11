@@ -1,0 +1,24 @@
+include gro
+
+A := 200;
+B := 20;
+
+barrier ( -A, B, -B, B );
+barrier (        -B, B, -B, A );
+
+barrier ( A, B, B, B );
+barrier (       B, B, B, A );
+
+barrier ( A, -B, B, -B );
+barrier (        B, -B, B, -A );
+
+barrier ( -A, -B, -B, -B );
+barrier (         -B, -B, -B, -A );
+
+program p() := {
+
+  gfp := 1000;
+
+};
+
+ecoli([], program p());

@@ -39,6 +39,7 @@ World::World ( GroThread *ct ) : calling_thread ( ct ) {
     gro_message = "";
     stop_flag = false;
     zoom = 1.0;
+    barriers = new std::list<Barrier>;
 
     set_sim_dt ( DEFAULT_SIM_DT );
     set_chip_dt ( DEFAULT_CHIP_DT );
@@ -270,16 +271,16 @@ void World::render ( GroPainter * painter ) {
         (*j)->render ( &theme, painter );
     }
 
+    theme.apply_chemostat_edge_color(painter);
+    painter->setBrush( QBrush() );
+
+    QPainterPath path;
+
     // Chemostat
     if ( chemostat_mode ) {
 
         int w = get_param("chemostat_width")/2,
                 h = get_param("chemostat_height")/2;
-
-        theme.apply_chemostat_edge_color(painter);
-        painter->setBrush( QBrush() );
-
-        QPainterPath path;
 
         path.moveTo(-400,h);
         path.lineTo(-w,h);
@@ -291,6 +292,14 @@ void World::render ( GroPainter * painter ) {
         //path.closeSubpath();
         painter->drawPath(path);
 
+    }
+
+    std::list<Barrier>::iterator b;
+
+    for ( b=barriers->begin(); b != barriers->end(); b++ ) {
+      path.moveTo((*b).x1,(*b).y1);
+      path.lineTo((*b).x2,(*b).y2);
+      painter->drawPath(path);
     }
 
     //  if ( 1 ) {
@@ -619,5 +628,18 @@ void World::dump ( FILE * fp ) {
                   (*i)->get_id(), (*i)->get_x(), (*i)->get_y(), (*i)->get_theta(), (*i)->get_volume(),
                   (*i)->get_rep(GFP), (*i)->get_rep(RFP), (*i)->get_rep(YFP), (*i)->get_rep(CFP) );
     }
+
+}
+
+void World::add_barrier ( float x1, float y1, float x2, float y2 ) {
+
+    Barrier * b = new Barrier;
+
+    b->x1 = x1;
+    b->y1 = y1;
+    b->x2 = x2;
+    b->y2 = y2;
+
+    barriers->push_back( *b );
 
 }

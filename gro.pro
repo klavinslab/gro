@@ -128,7 +128,8 @@ OTHER_FILES += \
     doc/compile_mac.md \
     doc/compile_linux.md \
     README.md \
-    examples/geometry.gro
+    examples/geometry.gro \
+    examples/barriers.gro
 
 !contains ( CONFIG, nogui ) {
   RESOURCES += icons.qrc

@@ -94,7 +94,7 @@ internal unit zoom ( real ) "zoom";
 
 // Chemostat
 internal unit chemostat ( bool ) "chemostat";
-
+internal unit barrier ( real, real, real, real ) "barrier";
 
 // Cell specific
 internal unit die() "die";

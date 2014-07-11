@@ -162,6 +162,12 @@ class MessageHandler {
 // World
 //
 
+struct Barrier {
+
+    float x1, y1, x2, y2;
+
+};
+
 class GroThread;
 
 class World { 
@@ -265,6 +271,8 @@ class World {
 
   void dump ( FILE * fp );
 
+  void add_barrier ( float x1, float y1, float x2, float y2 );
+
  private:
 
   cpSpace * space;
@@ -282,6 +290,7 @@ class World {
   std::string gro_message;
   MessageHandler message_handler;
   float zoom;
+  std::list<Barrier> * barriers;
 
 #ifndef NOGUI
   Theme theme;

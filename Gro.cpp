@@ -619,13 +619,35 @@ Value * gro_dump ( std::list<Value *> * args, Scope * s ) {
 
 }
 
-
-
-
 /////////////////////////////////////////////////////////////////////////////////////////////
 // MICROFLUIDICS
 // INTERNAL GRO FUNCTIONS
 //
+
+Value * barrier ( std::list<Value *> * args, Scope * s ) {
+
+    World * world = current_gro_program->get_world();
+    std::list<Value *>::iterator i = args->begin();
+
+    float x1 = (*i)->num_value();
+    i++;
+    float y1 = (*i)->num_value();
+    i++;
+    float x2 = (*i)->num_value();
+    i++;
+    float y2 = (*i)->num_value();
+
+    cpShape *shape;
+    cpBody *staticBody = &(world->get_space())->staticBody;
+
+    shape = cpSpaceAddShape(world->get_space(), cpSegmentShapeNew(staticBody, cpv(x1,y1), cpv(x2,y2), 5.0f));
+    shape->e = 1.0f; shape->u = 0.0f;
+
+    world->add_barrier ( x1, y1, x2, y2 );
+
+    return new Value ( Value::UNIT );
+
+}
 
 Value * chemostat ( std::list<Value *> * args, Scope * s ) {
 
@@ -995,6 +1017,7 @@ void register_gro_functions ( void ) {
   register_ccl_function ( "print", gro_print );
   register_ccl_function ( "clear", gro_clear );
   register_ccl_function ( "chemostat", chemostat );
+  register_ccl_function ( "barrier", barrier );
 
   // File I/O
   register_ccl_function ( "fopen", gro_fopen );
