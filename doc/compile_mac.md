@@ -10,12 +10,15 @@ Select Qt 5.3 and Tools.
 
 Follow the instructions at https://help.github.com/articles/set-up-git. Note that Qt has a nice git interface in Tools/git. You can use this to pull the latest changes and recompile, or simply use git at the command line.
 
-## Get and compile CCL
+## Get all the code
 
-Make a directory to put code. I'll assume it's called Code. Open a terminal, and cd to the Code directory. Then clone ccl:
+Make a directory to put code. I'll assume it's called Code. Open a terminal, and cd to the Code directory. Then clone ccl and gro:
 
     git clone https://github.com/klavinslab/ccl.git
-    
+    git clone https://github.com/klavinslab/gro.git
+
+## Compile CCL
+
 Open Qt and choose "Open Project. Navigate to ccl/ccl.pro and open it. Use only the Desktop kit and the choose "Configure Project". Once you have the project open, build it by selecting Build/Build project "ccl". The results of the build should be a new directory 
 
     build-ccl-Desktop_Qt_5_3_0_clang_64bit-Debug
@@ -41,10 +44,6 @@ Make an easier link to the build file with:
      ln -s build-chipmunk-Desktop_Qt_5_3_0_clang_64bit-Debug/ build-chipmunk 
  
 ## Get and compile gro
-
-In your code directory again, clone gro:
-
-    git clone https://github.com/klavinslab/gro.git
 
 Open Code/gro/gro.pro in Qt, set it to the active project, build gro and run it. You should be able to open a file in the examples file in the build directory and run it.
 
