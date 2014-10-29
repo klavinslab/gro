@@ -91,6 +91,13 @@ macx {
   INCLUDEPATH += ../ccl/ ../chipmunk/include/chipmunk/
   # mytarget.commands = COPY EXAMPLES FILE TO APPLICATION DIRECTORY
 }
+linux {
+  LIBS += -L../ccl -lccl -L../chipmunk/src -lchipmunk
+  PRE_TARGETDEPS += ../ccl/libccl.a
+  DEPENDPATH += ../chipmunk/
+  INCLUDEPATH += ../ccl/ ../chipmunk/include/chipmunk/
+  # mytarget.commands = COPY EXAMPLES FILE TO APPLICATION DIRECTORY
+}
 
 OTHER_FILES += \
     examples/wave.gro \
