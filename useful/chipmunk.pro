@@ -7,6 +7,7 @@
 QT       -= core gui
 
 CXXFLAGS += -fast
+QMAKE_CFLAGS += -std=c99
 
 TARGET = chipmunk
 TEMPLATE = lib
