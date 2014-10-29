@@ -17,7 +17,7 @@
 //
 //
 
-#include "gropainter.h"
+#include "GroPainter.h"
 
 GroPainter::GroPainter ( QSize s, QPaintDevice * device ):
     QPainter(device),
