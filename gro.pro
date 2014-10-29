@@ -92,7 +92,7 @@ macx {
   # mytarget.commands = COPY EXAMPLES FILE TO APPLICATION DIRECTORY
 }
 linux {
-  LIBS += -L../ccl -lccl -L../chipmunk/src -lchipmunk
+  LIBS += -L../ccl -lccl -L../chipmunk -lchipmunk
   PRE_TARGETDEPS += ../ccl/libccl.a
   DEPENDPATH += ../chipmunk/
   INCLUDEPATH += ../ccl/ ../chipmunk/include/chipmunk/
