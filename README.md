@@ -25,3 +25,9 @@ If you are on a Mac you may have discovered an issue with gro not starting prope
     end tell
     set dir to (POSIX path of current_path)
     do shell script "cd \"" & dir & "\" && gro.app/Contents/MacOS/gro > /dev/null 2>&1 &"
+
+To use this script, put it in a file called `run_gro.scpt` within the gro directory and then at the command line run
+
+    > osascript run_gro.scpt
+    
+    
