@@ -830,6 +830,8 @@ void gro_Program::init ( World * w ) {
   scope->add ( "daughter", new Value ( false ) );
   scope->add ( "selected", new Value ( false ) );
   scope->add ( "volume", new Value ( 0.0000000001 ) );
+  scope->add ( "x", new Value ( 0 ) );
+  scope->add ( "y", new Value ( 0 ) );
   scope->add ( "id", new Value ( 0 ) ); // these values should be deleted when scope is deleted
 
   // command line arguments
@@ -906,7 +908,9 @@ Value * gro_Program::eval ( World * world, Cell * cell, Expr * e ) {
   }
 
   scope->assign ( "dt", new Value ( world->get_sim_dt() ) ); 
-  scope->assign ( "volume", new Value ( cell->get_volume() ) ); 
+  scope->assign ( "volume", new Value ( cell->get_volume() ) );
+  scope->assign ( "x", new Value ( cell->get_x() ) );
+  scope->assign ( "y", new Value ( cell->get_y() ) );
   scope->assign ( "selected", new Value ( cell->is_selected() ) );
   scope->assign ( "id", new Value ( cell->get_id() ) );
 
@@ -951,6 +955,8 @@ void gro_Program::update ( World * world, Cell * cell ) {
 
   scope->assign ( "dt", new Value ( world->get_sim_dt() ) ); 
   scope->assign ( "volume", new Value ( cell->get_volume() ) ); 
+  scope->assign ( "x", new Value ( cell->get_x() ) );
+  scope->assign ( "y", new Value ( cell->get_y() ) );
   scope->assign ( "selected", new Value ( cell->is_selected() ) );
   scope->assign ( "id", new Value ( cell->get_id() ) );
 
