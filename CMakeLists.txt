@@ -116,8 +116,13 @@ if(APPLE)
     get_filename_component(_qt_bin_dir "${_qmake_path}" DIRECTORY)
     find_program(MACDEPLOYQT_EXECUTABLE macdeployqt HINTS "${_qt_bin_dir}")
     if(MACDEPLOYQT_EXECUTABLE)
+        # macdeployqt invokes install_name_tool and strip via PATH. If the
+        # user has MacPorts (/opt/local/bin) ahead of /usr/bin, those tools
+        # are too old to read modern Mach-O ("unknown load command N"
+        # errors). Prepend /usr/bin so the Xcode toolchain versions win.
         add_custom_command(TARGET gro POST_BUILD
-            COMMAND "${MACDEPLOYQT_EXECUTABLE}" "$<TARGET_BUNDLE_DIR:gro>" -always-overwrite
+            COMMAND ${CMAKE_COMMAND} -E env "PATH=/usr/bin:$ENV{PATH}"
+                "${MACDEPLOYQT_EXECUTABLE}" "$<TARGET_BUNDLE_DIR:gro>" -always-overwrite
             COMMENT "Deploying Qt into gro.app"
             VERBATIM)
     endif()
