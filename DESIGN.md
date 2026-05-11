@@ -67,12 +67,11 @@ from gro import *
 
 This mirrors CCL's `include gro` one-for-one. The `gro` module curates
 `__all__` so the wildcard import is well-defined; it exposes only the
-API surface listed in this document (`Program`, `State`, `when`,
-`always`, `rate`, `signal`, `ecoli`, `set_param`, `get_param`,
-`set_signal`,
-`get_signal`, `emit_signal`, `absorb_signal`, `dt`, `rate`, `rand`,
-`compose`, `Composed`, `Preserved`, `Halved`, `on_tick`, …) plus the
-exception types (`GroError`, `GroLoadError`).
+API surface listed in this document (`Program`, `WorldProgram`,
+`State`, `when`, `always`, `rate`, `signal`, `ecoli`, `set_main`,
+`set_param`, `get_param`, `set_signal`, `get_signal`, `emit_signal`,
+`absorb_signal`, `dt`, `rand`, `compose`, `Composed`, `Preserved`,
+`Halved`, …) plus the exception types (`GroError`, `GroLoadError`).
 
 Programs that prefer a tighter namespace can `import gro` and use
 qualified names (`gro.rule`, `gro.always`, …) instead. The simulator
@@ -123,7 +122,7 @@ Semantic correspondence with CCL:
 | `condition : { actions }` (guarded cmd)    | `@when(lambda self: ...)`               |
 | `true : { … }`                             | `@always`                               |
 | `rate(0.1) : { … }`                        | `@rate(0.1)`                            |
-| `program main() := { … };`                 | `@on_tick def main(): …`                |
+| `program main() := { … };`                 | `class Main(WorldProgram): … ; set_main(Main)` |
 | `program r(x) := p(x+1) + p(x+2);`         | `r = compose(P.with_args(x+1), …)`      |
 | `program h(x) := p(x) + g() sharing t;`    | `h = compose(P, G, share=["t"])`        |
 | `needs t;`                                 | `requires = ["t"]` class attr           |
@@ -321,6 +320,56 @@ renderer reads. They behave like `int`s; `self.gfp += 1` works.
 
 Reporters do NOT live in `state`; they're separate counters that the
 simulator owns. They are halved on division (same as numeric state).
+
+### World programs (`main`)
+
+CCL's `program main()` is special: it runs once per simulation tick at
+the world level, not per cell. The Python equivalent is a subclass of
+`WorldProgram`, registered with `set_main(...)`.
+
+```python
+class Main(WorldProgram):
+    state = State(t: float = 0.0)
+
+    @always
+    def tick(self):
+        self.state.t += dt
+
+    @when(lambda self: self.state.t > 5)
+    def pin(self):
+        set_signal(ahl, 0, 0, 10)
+
+set_main(Main)
+```
+
+`WorldProgram` inherits from `Program` and uses the same machinery:
+`state` schema, `@when` / `@always` / `@rate` decorators, scheduler
+dispatch, `setup()`, `compose(...)` for combining several into one.
+Multiple guarded commands are dispatched by the same scheduler that
+runs per-cell rules — no `if`-chains in the user's tick code.
+
+Differences from `Program`:
+
+- No cell built-ins (`volume`, `id`, `just_divided`, `daughter`,
+  `selected`). Accessing them is a class-creation error in strict mode.
+- No reporters (`gfp`/`rfp`/`cfp`/`yfp`).
+- No per-cell signal API (`self.emit_signal`, `self.absorb_signal`).
+  World-level signal control still works via the global functions
+  (`set_signal`, `get_signal`).
+- Singleton — one instance per world. Division semantics don't apply,
+  so `Halved` / `Preserved` annotations on the state schema are
+  no-ops.
+
+Composition still works:
+
+```python
+class Logger(WorldProgram):  ...
+class Pinger(WorldProgram):  ...
+set_main(compose(Logger, Pinger, share=["t"]))
+```
+
+A `.py` program with no `set_main(...)` call simply has no world
+program (same as omitting `program main` in CCL — perfectly fine).
 
 ### Standard library
 
