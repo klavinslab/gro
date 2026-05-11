@@ -160,6 +160,19 @@ if(APPLE)
             COMMENT "Deploying Qt into gro.app"
             VERBATIM)
     endif()
+
+    # macdeployqt rewrites the binary's rpaths, which invalidates the
+    # signature clang originally produced. On Apple Silicon, macOS
+    # refuses to launch a Mach-O with a broken signature ("This software
+    # needs to be updated"). Re-sign ad-hoc so every binary in the
+    # bundle has at least a valid anonymous signature.  This does NOT
+    # bypass Gatekeeper (downloaded apps still need notarization for
+    # that) but it does fix the broken-signature error.
+    add_custom_command(TARGET gro POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E env "PATH=/usr/bin:$ENV{PATH}"
+            codesign --force --deep --sign - "$<TARGET_BUNDLE_DIR:gro>"
+        COMMENT "Ad-hoc signing gro.app"
+        VERBATIM)
 endif()
 
 # ----------------------------------------------------------------------------
