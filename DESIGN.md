@@ -57,77 +57,97 @@ update. See *Threading* below.
 
 ## User-facing API
 
-### Program definition
+### Imports
 
-Programs are subclasses of `gro.Program`. State lives in a declared,
-typed schema; rules are methods decorated with `@gro.rule(when=...)` or
-`@gro.always`.
+`.py` gro programs canonically start with:
 
 ```python
-import gro
+from gro import *
+```
 
-ahl = gro.signal(diffusion=1.0, degradation=1.0)
-gro.set_param("dt", 0.075)
+This mirrors CCL's `include gro` one-for-one. The `gro` module curates
+`__all__` so the wildcard import is well-defined; it exposes only the
+API surface listed in this document (`Program`, `State`, `rule`,
+`always`, `signal`, `ecoli`, `set_param`, `get_param`, `set_signal`,
+`get_signal`, `emit_signal`, `absorb_signal`, `dt`, `rate`, `rand`,
+`compose`, `Composed`, `Preserved`, `Halved`, `on_tick`, …) plus the
+exception types (`GroError`, `GroLoadError`).
 
-class Leader(gro.Program):
-    state = gro.State(t: float = 2.4)
+Programs that prefer a tighter namespace can `import gro` and use
+qualified names (`gro.rule`, `gro.always`, …) instead. The simulator
+doesn't care which style is used.
+
+### Program definition
+
+Programs are subclasses of `Program`. State lives in a declared,
+typed schema; rules are methods decorated with `@rule(when=...)` or
+`@always`.
+
+```python
+from gro import *
+
+ahl = signal(diffusion=1.0, degradation=1.0)
+set_param("dt", 0.075)
+
+class Leader(Program):
+    state = State(t: float = 2.4)
 
     def setup(self):
-        gro.set_param("ecoli_growth_rate", 0.0)
+        set_param("ecoli_growth_rate", 0.0)
 
-    @gro.always
+    @always
     def tick(self):
-        self.state.t += gro.dt
+        self.state.t += dt
 
-    @gro.rule(when=lambda self: self.state.t > 10)
+    @rule(when=lambda self: self.state.t > 10)
     def fire(self):
         self.emit_signal(ahl, 100)
         self.state.t = 0
 
-gro.ecoli(x=0, y=0, program=Leader)
+ecoli(x=0, y=0, program=Leader)
 ```
 
 Semantic correspondence with CCL:
 
 | CCL                                        | Python                                  |
 | ------------------------------------------ | --------------------------------------- |
-| `program p() := { … };`                    | `class P(gro.Program): …`               |
-| `x := 0;` (initializer)                    | field in `state = gro.State(x: int = 0)`|
-| `condition : { actions }` (guarded cmd)    | `@gro.rule(when=lambda self: ...)`      |
-| `true : { … }`                             | `@gro.always`                           |
-| `rate(0.1) : { … }`                        | `@gro.rule(when=gro.rate(0.1))`         |
-| `program main() := { … };`                 | `gro.on_tick(fn)` or a `gro.Main` class |
-| `program r(x) := p(x+1) + p(x+2);`         | `r = gro.compose(P.with_args(x+1), …)`  |
-| `program h(x) := p(x) + g() sharing t;`    | `h = gro.compose(P, G, share=["t"])`    |
+| `include gro` (standard library)           | `from gro import *`                     |
+| `program p() := { … };`                    | `class P(Program): …`                   |
+| `x := 0;` (initializer)                    | field in `state = State(x: int = 0)`    |
+| `condition : { actions }` (guarded cmd)    | `@rule(when=lambda self: ...)`          |
+| `true : { … }`                             | `@always`                               |
+| `rate(0.1) : { … }`                        | `@rule(when=rate(0.1))`                 |
+| `program main() := { … };`                 | `on_tick(fn)` or a `Main` class         |
+| `program r(x) := p(x+1) + p(x+2);`         | `r = compose(P.with_args(x+1), …)`      |
+| `program h(x) := p(x) + g() sharing t;`    | `h = compose(P, G, share=["t"])`        |
 | `needs t;`                                 | `requires = ["t"]` class attr           |
-| `ecoli([x:=0,y:=0], program p())`          | `gro.ecoli(x=0, y=0, program=P)`        |
-| `include gro` (standard library)           | implicit; the `gro` module is imported  |
+| `ecoli([x:=0,y:=0], program p())`          | `ecoli(x=0, y=0, program=P)`            |
 
 ### State schema
 
 ```python
-state = gro.State(
-    t:        float                 = 2.4,    # numeric → halved on divide
-    gfp:      int                   = 0,      # numeric → halved
-    mode:     int                   = 0,      # numeric → halved (probably wrong default)
-    history:  list                  = (),     # non-numeric → deep-copied
-    last_msg: str                   = "",
-    period:   gro.Preserved[float]  = 5.0,    # explicit: not halved
-    count:    gro.Halved[int]       = 100,    # explicit: halved (redundant with default but fine)
+state = State(
+    t:        float             = 2.4,    # numeric → halved on divide
+    gfp:      int               = 0,      # numeric → halved
+    mode:     int               = 0,      # numeric → halved (probably wrong default)
+    history:  list              = (),     # non-numeric → deep-copied
+    last_msg: str               = "",
+    period:   Preserved[float]  = 5.0,    # explicit: not halved
+    count:    Halved[int]       = 100,    # explicit: halved (redundant with default but fine)
 )
 ```
 
-- `gro.State(...)` builds a per-class frozen-shape dataclass.
+- `State(...)` builds a per-class frozen-shape dataclass.
 - Numeric fields are halved on cell division by default.
-- Annotate with `gro.Preserved[T]` to override and keep value across
-  division; `gro.Halved[T]` for explicit-halved (default).
+- Annotate with `Preserved[T]` to override and keep value across
+  division; `Halved[T]` for explicit-halved (default).
 - List/tuple/dict defaults must be immutable (`()`, `frozenset()`, or
-  `gro.field(list, default=[])`). Strict mode rejects `list = []`.
+  `field(list, default=[])`). Strict mode rejects `list = []`.
 
 ### Rules and guards
 
 ```python
-@gro.rule(when=lambda self: self.state.mode == 0 and self.get_signal(ahl) > 0.01)
+@rule(when=lambda self: self.state.mode == 0 and self.get_signal(ahl) > 0.01)
 def relay(self):
     self.emit_signal(ahl, 100)
     self.state.mode = 1
@@ -137,12 +157,12 @@ The `when=` lambda is **AST-inspected at class definition time**.
 Allowed nodes:
 
 - `Compare`, `BoolOp`, `UnaryOp`, `BinOp` (math/logic operators)
-- `Attribute` accesses on `self`, on `gro`, on `gro.*`-returned objects
+- `Attribute` accesses on `self`, on the `gro` API surface
 - `Subscript` for lists/dicts
 - `Constant`, `Name` (must resolve to module-level constants only)
 - `Call` to a closed allowlist: `self.get_signal`, `self.get_param`,
-  `gro.get_signal`, `gro.get_param`, `gro.rate`, `min`, `max`, `abs`,
-  `len`, `math.*` (the safe subset).
+  `get_signal`, `get_param`, `rate`, `min`, `max`, `abs`, `len`,
+  `math.*` (the safe subset).
 
 Forbidden:
 
@@ -151,6 +171,10 @@ Forbidden:
   `self.emit_signal`, etc.)
 - `Lambda` inside the guard, `Yield`, comprehensions with side-effecty
   generators.
+
+The sandbox treats both `gro.foo` (qualified) and `foo` (post `from gro
+import *`) identically — the AST walker resolves names against
+`gro.__all__` rather than against the user's imports.
 
 A violation is a load-time error with file/line/column pointing into
 the user's source. The user gets ~the same property CCL gave them:
@@ -167,7 +191,7 @@ traceback to the console.
 The canonical primitive:
 
 ```python
-Composite = gro.compose(P1, P2, share=["t", "gfp"])
+Composite = compose(P1, P2, share=["t", "gfp"])
 ```
 
 - Returns a new `Program` subclass.
@@ -184,8 +208,8 @@ Parametric composition:
 
 ```python
 def Repeater(x):
-    return gro.compose(Pulser.with_args(period=x+1),
-                       Pulser.with_args(period=x+2))
+    return compose(Pulser.with_args(period=x+1),
+                   Pulser.with_args(period=x+2))
 ```
 
 `Program.with_args(...)` returns a thin subclass that injects the args
@@ -195,25 +219,25 @@ state.
 Class-style sugar:
 
 ```python
-class Wave(gro.Composed):
+class Wave(Composed):
     parts = [Leader, Follower]
     share = ["t"]
 ```
 
-Equivalent to `Wave = gro.compose(Leader, Follower, share=["t"])`.
+Equivalent to `Wave = compose(Leader, Follower, share=["t"])`.
 
 ### `needs` / `requires`
 
 ```python
-class Printer(gro.Program):
+class Printer(Program):
     requires = ["t"]
 
-    @gro.rule(when=gro.always)
+    @always
     def show(self):
         print(self.state.t)
 ```
 
-`gro.compose([Leader, Printer], share=["t"])` validates that every
+`compose(Leader, Printer, share=["t"])` validates that every
 name in `Printer.requires` is either:
 
 - declared in some part's `State`, **and**
@@ -246,26 +270,26 @@ Shared cells (from `share=[...]`) divide exactly once.
 
 ### Strict mode
 
-On by default. Enforced at class-creation time by `gro.Program.__init_subclass__`:
+On by default. Enforced at class-creation time by `Program.__init_subclass__`:
 
-- `state` must be a `gro.State(...)` (no missing schema).
+- `state` must be a `State(...)` (no missing schema).
 - No instance attributes can be set on `self` outside of:
   - the declared `state` fields,
   - simulator-injected attributes (`volume`, `id`, `just_divided`,
     `daughter`, `selected`, plus the reporter aliases `gfp`/`rfp`/
     `cfp`/`yfp`).
-- Every `@gro.rule` must have a `when=` keyword.
+- Every `@rule` must have a `when=` keyword.
 - Every `when=` lambda passes the AST sandbox.
 - `requires` and `share` lists, if present, reference real field names.
 
-Mutable defaults in `gro.State` (`list = []`, `dict = {}`, etc.) are
-rejected. `__slots__` on `gro.Program` makes accidental
+Mutable defaults in `State` (`list = []`, `dict = {}`, etc.) are
+rejected. `__slots__` on `Program` makes accidental
 attribute creation raise `AttributeError`.
 
-Permissive mode (`gro.set_strict(False)` or `class P(gro.Program,
-strict=False)`) opts a single class out: warns instead of erroring on
-the above, deep-copies non-state attributes on division with a warning.
-Intended for quick scripts, not production code.
+Permissive mode (`set_strict(False)` or `class P(Program, strict=False)`)
+opts a single class out: warns instead of erroring on the above,
+deep-copies non-state attributes on division with a warning. Intended
+for quick scripts, not production code.
 
 ### Cell built-ins
 
@@ -280,7 +304,7 @@ simulator each tick:
 - `self.selected` — true when the user has selected this cell in the
   GUI
 
-Plus the world constant `gro.dt`. Same set as CCL.
+Plus the world constant `dt` (i.e. `gro.dt`). Same set as CCL.
 
 ### Reporters
 
@@ -297,11 +321,11 @@ simulator owns. They are halved on division (same as numeric state).
 | ---------------------------- | ------------------------------------- |
 | `print(x, y, ...)`           | builtin `print`                       |
 | `skip()`                     | `pass`                                |
-| `exit()`                     | `gro.exit()` (raises a clean shutdown)|
+| `exit()`                     | `exit()` (raises a clean shutdown)    |
 | `atoi`/`atof`/`tostring`     | builtins `int`, `float`, `str`        |
 | `length L`                   | `len(L)`                              |
 | `sin`/`cos`/`tan`/…          | `math.sin` etc.                       |
-| `rand(x)`                    | `gro.rand(x)`                         |
+| `rand(x)`                    | `rand(x)`                             |
 | `range n`                    | `range(n)`                            |
 | `cross A B`                  | `itertools.product(A, B)`             |
 | `zip A B`                    | `zip(A, B)`                           |
@@ -351,7 +375,9 @@ The user-facing `gro` Python module is implemented in C++ (single
 `pybind11::module_` named `gro`) and registered via
 `PyImport_AppendInittab` before `Py_Initialize`. It is a built-in
 module of the embedded interpreter; the user never sees a `gro.so` on
-disk.
+disk. The module's `__all__` is set explicitly to the API surface
+documented here, so `from gro import *` brings in exactly the
+documented names — nothing more, nothing accidentally re-exported.
 
 ## Loading & error reporting
 
@@ -373,17 +399,17 @@ once milestone 6 lands.
    on demand, `Py_Finalize` at shutdown. gro builds and runs `.gro`
    files unchanged; passing a `.py` file prints "Python support not
    implemented" to the console.
-2. **Minimal API surface.** `gro.set_param`, `gro.get_param`,
-   `gro.signal`, `gro.set_signal`, `gro.get_signal`, `gro.dt`,
-   `gro.ecoli`. Enough to run a trivial program with no behavior. A
-   `.py` file with `gro.ecoli(x=0, y=0)` puts a cell on the canvas.
-3. **Program class with state schema.** `gro.Program`, `gro.State`,
-   `gro.rule`, `gro.always`. AST sandbox for `when=`. Strict mode.
-   wave.py runs and visually matches wave.gro.
-4. **Cell division semantics.** `gro.Preserved` / `gro.Halved`,
-   per-field halving rules, `just_divided` / `daughter` plumbed.
-5. **Composition.** `gro.compose`, `gro.Composed`, `share=[...]`,
-   `requires`, parametric composition via `.with_args`.
+2. **Minimal API surface.** `set_param`, `get_param`, `signal`,
+   `set_signal`, `get_signal`, `dt`, `ecoli`. Enough to run a trivial
+   program with no behavior. A `.py` file with `ecoli(x=0, y=0)` puts a
+   cell on the canvas. `__all__` is set; `from gro import *` works.
+3. **Program class with state schema.** `Program`, `State`, `rule`,
+   `always`. AST sandbox for `when=`. Strict mode. wave.py runs and
+   visually matches wave.gro.
+4. **Cell division semantics.** `Preserved` / `Halved`, per-field
+   halving rules, `just_divided` / `daughter` plumbed.
+5. **Composition.** `compose`, `Composed`, `share=[...]`, `requires`,
+   parametric composition via `.with_args`.
 6. **Polish.** Reporters, error overlay path for Python errors, docs,
    `.py` examples mirroring the `.gro` ones. Bump version, build DMG.
 
