@@ -21,21 +21,26 @@ macOS
 brew install qt cmake bison flex m4
 
 git clone https://github.com/klavinslab/gro.git
-cmake -S gro -B build \
-    -DCMAKE_PREFIX_PATH=$(brew --prefix qtbase)
+cd gro
+
+cmake -S . -B build -DCMAKE_PREFIX_PATH=$(brew --prefix qtbase)
 cmake --build build -j
 
 open build/gro.app
 ```
 
+`-S .` says "configure from the current directory"; `-B build` says
+"put the build output in `./build/`". Every `cmake` invocation after
+the first reuses that same `build/` directory.
+
 The `bison`, `flex`, and `m4` formulas are needed to build the bundled
-parser. `cmake` resolves them automatically once they are installed; you
-don't need to put them on `PATH` manually.
+parser. `cmake` finds them automatically — you don't need to put them
+on `PATH` manually.
 
-The first `cmake -S ... -B ...` invocation clones `ccl` and `Chipmunk2D`
-into `build/_deps/`. Subsequent configures are cached.
+The first `cmake -S . -B build` clones `ccl` and `Chipmunk2D` into
+`build/_deps/`. Subsequent configures are cached.
 
-To build a distributable DMG on macOS:
+To produce a distributable disk image:
 
 ```bash
 cmake --build build --target package
@@ -48,7 +53,8 @@ Linux
 ```bash
 sudo apt install qt6-base-dev cmake bison flex
 git clone https://github.com/klavinslab/gro.git
-cmake -S gro -B build
+cd gro
+cmake -S . -B build
 cmake --build build -j
 ./build/gro
 ```
@@ -57,6 +63,5 @@ Notes
 ---
 
 - Examples live in `examples/`. Open one via `File → Open` in the GUI.
-- `main.cpp` `chdir`s to the build directory at startup so the `examples/`
-  and `include/` symlinks (created by `CMakeLists.txt` as a post-build
-  step) resolve correctly.
+- `main.cpp` `chdir`s to `gro.app/Contents/Resources/` at startup, where
+  CMake copies `examples/` and `include/` so the bundle is self-contained.
