@@ -22,7 +22,7 @@ include(FetchContent)
 # ccl: Klavins Lab's embedded interpreted language.
 FetchContent_Declare(ccl
     GIT_REPOSITORY https://github.com/klavinslab/ccl.git
-    GIT_TAG        75a63a1d6bde8f3d82e96bd8fa9e42d7594804eb  # master
+    GIT_TAG        a4c5c96d952ae2839d3d0790607fe2879e5abeb5  # master
 )
 
 # Chipmunk2D 7.0.3: physics engine.
