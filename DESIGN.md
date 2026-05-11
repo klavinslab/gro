@@ -68,10 +68,11 @@ from gro import *
 This mirrors CCL's `include gro` one-for-one. The `gro` module curates
 `__all__` so the wildcard import is well-defined; it exposes only the
 API surface listed in this document (`Program`, `WorldProgram`,
-`State`, `when`, `always`, `rate`, `signal`, `ecoli`, `set_main`,
-`set_param`, `get_param`, `set_signal`, `get_signal`, `emit_signal`,
-`absorb_signal`, `dt`, `rand`, `compose`, `Composed`, `Preserved`,
-`Halved`, …) plus the exception types (`GroError`, `GroLoadError`).
+`State`, `field`, `when`, `always`, `rate`, `signal`, `ecoli`,
+`set_main`, `set_param`, `get_param`, `set_signal`, `get_signal`,
+`emit_signal`, `absorb_signal`, `dt`, `rand`, `compose`, `Composed`,
+`Preserved`, `Halved`, …) plus the exception types (`GroError`,
+`GroLoadError`).
 
 Programs that prefer a tighter namespace can `import gro` and use
 qualified names (`gro.rule`, `gro.always`, …) instead. The simulator
@@ -132,22 +133,33 @@ Semantic correspondence with CCL:
 
 ```python
 state = State(
-    t:        float             = 2.4,    # numeric → halved on divide
-    gfp:      int               = 0,      # numeric → halved
-    mode:     int               = 0,      # numeric → halved (probably wrong default)
-    history:  list              = (),     # non-numeric → deep-copied
+    t:        float             = 2.4,             # numeric → halved on divide
+    gfp:      int               = 0,               # numeric → halved
+    mode:     int               = 0,               # numeric → halved (probably wrong default)
+    history:  list              = field(list),     # each cell gets a fresh []
+    counters: dict              = field(dict),     # each cell gets a fresh {}
     last_msg: str               = "",
-    period:   Preserved[float]  = 5.0,    # explicit: not halved
-    count:    Halved[int]       = 100,    # explicit: halved (redundant with default but fine)
+    period:   Preserved[float]  = 5.0,             # explicit: not halved
+    count:    Halved[int]       = 100,             # explicit: halved (redundant default but fine)
 )
 ```
 
 - `State(...)` builds a per-class frozen-shape dataclass.
-- Numeric fields are halved on cell division by default.
-- Annotate with `Preserved[T]` to override and keep value across
-  division; `Halved[T]` for explicit-halved (default).
-- List/tuple/dict defaults must be immutable (`()`, `frozenset()`, or
-  `field(list, default=[])`). Strict mode rejects `list = []`.
+- Numeric fields are halved on cell division by default; non-numeric
+  fields are deep-copied.
+- Annotate with `Preserved[T]` to keep a numeric value across division;
+  `Halved[T]` for explicit-halved (default for numerics).
+- Mutable types (`list`, `dict`, `set`, user-defined classes) are
+  perfectly valid state — CCL has lists and records, and we keep
+  parity. The only restriction is on **how the default is spelled**:
+  a literal `list = []` or `dict = {}` would be shared across every
+  cell (Python's class-attribute footgun), so use `field(callable)`
+  instead, e.g. `list = field(list)`, `dict = field(dict)`, or
+  `MyClass = field(lambda: MyClass(args))`. Strict mode rejects bare
+  mutable literals at class-creation with a helpful error pointing to
+  the `field(...)` fix.
+- `gro.field(factory)` is just `dataclasses.field(default_factory=factory)`
+  re-exported for convenience.
 
 ### Rules and guards
 
@@ -191,6 +203,34 @@ Rule body restrictions are looser — bodies can call anything in the
 restriction is "must not raise from a rule fired by the simulator"; an
 unhandled exception in a body halts the simulation and prints the
 traceback to the console.
+
+#### Firing semantics: which rules run each tick
+
+v1 uses **standard scheduling**: at each simulation tick, every rule's
+predicate is evaluated in source-declaration order, and every rule
+whose predicate is true fires (its body runs), in that same order. This
+matches gro's current behavior — `gro_Program::update` calls
+`AtomicProgram::step`, which is exactly the body of CCL's
+`standard_scheduler`. Multiple rules can fire in one tick.
+
+CCL's library actually defines three scheduling strategies in
+`ccl/Schedulers.cpp` — `standard_scheduler`, `random_epoch_scheduler`
+(one randomly-chosen rule per step; every rule fires exactly once per
+"epoch" through the rule list), and `debugger_scheduler` (round-robin,
+one rule per step). gro only ever wires up the standard one; the other
+two are dormant.
+
+We don't expose a scheduler choice in v1 to avoid API surface for a
+feature that's never been used. If `random_epoch` semantics become
+useful later, the planned extension point is a class kwarg:
+
+```python
+class Async(Program, scheduler="random_epoch"):  # not in v1
+    ...
+```
+
+Adding that kwarg later is fully backward-compatible — existing
+programs all behave as `scheduler="standard"`.
 
 ### Composition
 
@@ -257,8 +297,15 @@ with a clear message.
 CCL halves all numeric locals when a cell divides. With the declared
 schema, gro knows exactly what to do.
 
+From the user's perspective, division is automatic — they declare
+state via `State(...)` (with optional `Halved` / `Preserved`
+annotations) and don't write any division code themselves. The
+behavior below is the *simulator's* job, shown here as pseudocode so
+the implementation can be specified unambiguously:
+
 ```python
-def divide(mother, f):              # f ≈ 0.5 with noise
+# INTERNAL — what the simulator does on cell division. Not user code.
+def _divide(mother, f):              # f ≈ 0.5 with noise
     daughter = mother.__class__.__new_uninitialized__()
     for name, type_ in mother.__schema__.items():
         v = getattr(mother.state, name)
@@ -284,13 +331,27 @@ On by default. Enforced at class-creation time by `Program.__init_subclass__`:
   - simulator-injected attributes (`volume`, `id`, `just_divided`,
     `daughter`, `selected`, plus the reporter aliases `gfp`/`rfp`/
     `cfp`/`yfp`).
-- Every rule method must be decorated with `@when(...)` or `@always`.
 - Every `@when(...)` predicate passes the AST sandbox.
 - `requires` and `share` lists, if present, reference real field names.
 
-Mutable defaults in `State` (`list = []`, `dict = {}`, etc.) are
-rejected. `__slots__` on `Program` makes accidental
-attribute creation raise `AttributeError`.
+Method roles inside a `Program` subclass:
+
+- **`setup(self)`** — optional init hook. Runs once when each cell
+  is spawned (not on division). Use it for per-cell parameter
+  changes (`set_param(...)`), one-time computations, etc.
+- **`@when(...)` / `@always` / `@rate(p)` decorated methods** — rules
+  the simulator fires each tick.
+- **Any other method** — plain helper. Not a rule. Not called
+  automatically. Use it however you like; rules and `setup()` can
+  invoke it.
+- Dunder methods (`__init__`, `__repr__`, …) are allowed but rarely
+  needed; the framework manages instance lifecycle.
+
+Literal mutable defaults in `State(...)` (`list = []`, `dict = {}`, …)
+are rejected at class creation with an error that points the user at
+`field(factory)` — see the *State schema* section for the rationale.
+`__slots__` on `Program` makes accidental attribute creation raise
+`AttributeError`.
 
 Permissive mode (`set_strict(False)` or `class P(Program, strict=False)`)
 opts a single class out: warns instead of erroring on the above,
@@ -388,6 +449,123 @@ program (same as omitting `program main` in CCL — perfectly fine).
 | `rev`/`sumlist`/`member`/…   | builtin reversals, `sum`, `in`        |
 | `makelist n default`         | `[default] * n`                       |
 | `table f n m`                | `[f(i) for i in range(n, m+1)]`       |
+
+## Extension model
+
+The CCL stdlib pattern — write a C++ function, register it with a
+string name, then declare it in a `.gro` interface file with
+`internal real time() "time";` — collapses in pybind11-land to one
+line per primitive. The interface file goes away; the C++ binding
+both registers and declares simultaneously.
+
+### C++ core + Python wrapper
+
+The user-facing `gro` module is built from two layers:
+
+```
+gro/                            ← user-facing package (`from gro import *`)
+├── __init__.py                 ← Python: decorators, Program, State,
+│                                 compose, AST sandbox, strict-mode
+│                                 enforcement, type-helper protocols
+└── _core   (built-in module)   ← C++ via pybind11: simulator hooks,
+                                  Cell class, signal/parameter
+                                  primitives, world queries
+```
+
+`gro/__init__.py` does `from ._core import *` for the C++ primitives,
+defines all the pure-Python idioms on top, and curates `__all__` so
+`from gro import *` brings in exactly the documented surface.
+
+`_core` is registered via `PyImport_AppendInittab("_core", &init_core)`
+before `Py_Initialize`; the user never sees it as a separate import.
+
+### How a developer adds a new primitive
+
+**Low-level (new C++ functionality exposed to Python):**
+
+```cpp
+// In gro_python_module.cpp:
+PYBIND11_EMBEDDED_MODULE(_core, m) {
+    m.def("time",       &gro_time);
+    m.def("set_param",  &gro_set_param);
+    m.def("get_signal", &gro_get_signal);
+    m.def("ecoli",      &gro_ecoli);
+    // ... one line per function
+
+    py::class_<Cell>(m, "Cell")
+        .def_readonly("id", &Cell::id)
+        .def_readonly("volume", &Cell::volume)
+        .def_property_readonly("gfp", &Cell::get_gfp)
+        .def("die",    &Cell::die)
+        .def("divide", &Cell::divide)
+        .def("run",    &Cell::run)
+        .def("tumble", &Cell::tumble);
+}
+```
+
+Adding a new C++-backed primitive is a one-liner: add `m.def("foo",
+&gro_foo)`, recompile, done. pybind11 introspects the C++ types to
+build the Python signature — no separate `internal real foo(real)
+"foo";` declaration needed.
+
+To make the new name visible to `from gro import *`, also add it to
+the `__all__` list in `gro/__init__.py`.
+
+**High-level (a new decorator or helper, written in Python):**
+
+Edit `gro/__init__.py`, add the function or class, list it in
+`__all__`. No C++ recompile.
+
+### Why split it this way
+
+Some things are better in C++:
+
+- Tight inner loops the simulator calls every tick (signal lookup, cell
+  position queries). One pybind11 call per cell-tick is fine; ten is
+  noticeable.
+- Anything that touches the gro core directly (the chipmunk space, the
+  signal grid, the cell list).
+
+Some things are better in Python:
+
+- The `Program` metaclass with `__init_subclass__` strict-mode checks.
+- The `State(...)` schema builder.
+- The `@when` / `@always` / `@rate` decorators.
+- AST-walking the predicate sandbox.
+- `compose(...)` / `Composed`.
+
+Trying to do the second list in C++ via pybind11 is masochism; trying
+to do the first list in pure Python is slow. The split is exactly
+where most embedded-Python projects (numpy, pandas, mypy's mypyc-built
+core, etc.) put it.
+
+### Bundle layout on macOS
+
+```
+gro.app/Contents/
+├── MacOS/
+│   └── gro                       ← the Qt app; embeds CPython
+├── Frameworks/
+│   ├── QtWidgets.framework
+│   ├── QtSvg.framework
+│   └── Python.framework          ← bundled by macdeployqt successor
+├── Resources/
+│   ├── examples/                 ← .gro and .py example files
+│   ├── include/
+│   │   ├── gro.gro               ← CCL stdlib (unchanged)
+│   │   └── standard.gro
+│   └── python/                   ← Python user-facing wrapper
+│       └── gro/
+│           └── __init__.py
+└── PlugIns/
+    ├── platforms/
+    └── imageformats/
+```
+
+At `Py_Initialize` time, gro prepends `Contents/Resources/python/` to
+`sys.path` so `from gro import *` resolves to the bundled wrapper.
+`_core` is already a builtin module, so it imports without going
+through `sys.path` at all.
 
 ## Threading
 
