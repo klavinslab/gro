@@ -668,10 +668,11 @@ Value * barrier ( std::list<Value *> * args, Scope * s ) {
     float y2 = (*i)->num_value();
 
     cpShape *shape;
-    cpBody *staticBody = &(world->get_space())->staticBody;
+    cpBody *staticBody = cpSpaceGetStaticBody(world->get_space());
 
     shape = cpSpaceAddShape(world->get_space(), cpSegmentShapeNew(staticBody, cpv(x1,y1), cpv(x2,y2), 5.0f));
-    shape->e = 1.0f; shape->u = 0.0f;
+    cpShapeSetElasticity ( shape, 1.0f );
+    cpShapeSetFriction   ( shape, 0.0f );
 
     world->add_barrier ( x1, y1, x2, y2 );
 
@@ -736,18 +737,19 @@ Value * run ( std::list<Value *> * args, Scope * s ) {
 
     float a = current_cell->get_theta();
     cpBody * body = current_cell->get_body();
-    cpVect v = cpBodyGetVel ( body );
-    cpFloat adot = cpBodyGetAngVel ( body );
+    cpVect v = cpBodyGetVelocity ( body );
+    cpFloat adot = cpBodyGetAngularVelocity ( body );
 
     cpBodySetTorque ( body, -adot ); // damp angular rotation
 
-    cpBodyApplyForce ( // apply force
-      current_cell->get_shape()->body, 
-      cpv ( 
+    cpBody * cb = cpShapeGetBody(current_cell->get_shape());
+    cpBodyApplyForceAtWorldPoint ( // apply force
+      cb,
+      cpv (
         ( dvel*cos(a) - v.x ) * world->get_sim_dt(),
         ( dvel*sin(a) - v.y ) * world->get_sim_dt()
-      ), 
-      cpv ( 0, 0 ) );
+      ),
+      cpBodyGetPosition(cb) );
 
   } else
 
@@ -768,18 +770,20 @@ Value * tumble ( std::list<Value *> * args, Scope * s ) {
 
     float a = current_cell->get_theta();
     cpBody * body = current_cell->get_body();
-    cpVect v = cpBodyGetVel ( body );
-    cpFloat adot = cpBodyGetAngVel ( body );
+    cpVect v = cpBodyGetVelocity ( body );
+    cpFloat adot = cpBodyGetAngularVelocity ( body );
+    (void) a;
 
     cpBodySetTorque ( body, vel - adot ); // apply torque
 
-    cpBodyApplyForce ( // damp translation
-      current_cell->get_shape()->body, 
-      cpv ( 
+    cpBody * cb = cpShapeGetBody(current_cell->get_shape());
+    cpBodyApplyForceAtWorldPoint ( // damp translation
+      cb,
+      cpv (
         - v.x * world->get_sim_dt(),
         - v.y * world->get_sim_dt()
-      ), 
-      cpv ( 0, 0 ) );
+      ),
+      cpBodyGetPosition(cb) );
 
   } else
 
