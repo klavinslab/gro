@@ -69,6 +69,8 @@ target_link_libraries(gro PRIVATE
     chipmunk_static
 )
 
+target_compile_definitions(gro PRIVATE GRO_VERSION="${PROJECT_VERSION}")
+
 # Old gro source uses #include "chipmunk_private.h" (unqualified). Match
 # the historical include layout so the source builds without rewriting
 # every include path.

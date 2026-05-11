@@ -74,7 +74,7 @@ void Gui::help ( void ) {
 void Gui::about ( void ) {
 
     console.clear();
-    console.insertHtml ( "<h2>gro: The Cell Programming Language</h2>Version beta.5<br />" );
+    console.insertHtml ( "<h2>gro: The Cell Programming Language</h2>Version " GRO_VERSION "<br />" );
     console.insertHtml ( "Programmed by Eric Klavins, University of Washington, Seattle, WA, USA<br />" );
     console.insertHtml ( "Copyright &copy; 2011-2012, University of Washington (GNU V. 2)<br />" );
     console.insertHtml ( "See <a href=\"http://depts.washington.edu/soslab/gro/\">http://depts.washington.edu/soslab/gro</a> for more information.<br />" );
