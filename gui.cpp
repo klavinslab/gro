@@ -36,6 +36,14 @@ Gui::Gui(int ac, char **av, QWidget *parent) :
 
     ui->setupUi(this);
 
+    // Material Symbols (Outlined), bundled as SVGs in icons.qrc.
+    ui->actionOpen     ->setIcon(QIcon(":/icons/icons/folder_open.svg"));
+    ui->actionReload   ->setIcon(QIcon(":/icons/icons/refresh.svg"));
+    ui->actionStartStop->setIcon(QIcon(":/icons/icons/play_arrow.svg"));
+    ui->actionStep     ->setIcon(QIcon(":/icons/icons/skip_next.svg"));
+    ui->actionZoom_In  ->setIcon(QIcon(":/icons/icons/zoom_in.svg"));
+    ui->actionZoom_Out ->setIcon(QIcon(":/icons/icons/zoom_out.svg"));
+
     console.setReadOnly(true);
 
     splitter.setOrientation(Qt::Vertical);
@@ -185,18 +193,18 @@ void Gui::updateActionStates ( void ) {
     case  GroThread::READY:
         SET_ACTION_ENABLED ( true, true, true, true, true, true );
         ui->actionStartStop->setText("Start");
-        ui->actionStartStop->setIcon(QIcon(":/icons/icons/start.png"));
+        ui->actionStartStop->setIcon(QIcon(":/icons/icons/play_arrow.svg"));
         break;
 
     case GroThread::DEAD:
         SET_ACTION_ENABLED ( true, true, false, false, false, false );
-        ui->actionStartStop->setIcon(QIcon(":/icons/icons/start.png"));
+        ui->actionStartStop->setIcon(QIcon(":/icons/icons/play_arrow.svg"));
         break;
 
     case GroThread::RUNNING:
         SET_ACTION_ENABLED ( false, false, true, false, false, true );
         ui->actionStartStop->setText("Stop");
-        ui->actionStartStop->setIcon(QIcon(":/icons/icons/stop.png"));
+        ui->actionStartStop->setIcon(QIcon(":/icons/icons/pause.svg"));
         break;
 
     }

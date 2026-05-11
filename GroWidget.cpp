@@ -18,6 +18,8 @@
 //
 
 #include <QtGui>
+#include <QPainter>
+#include <QSvgRenderer>
 #include <string>
 
 #include "GroWidget.h"
@@ -27,9 +29,22 @@ GroWidget::GroWidget(int ac, char ** av,QWidget *parent) :
     grothread(this),
     status_string ( tr("Click \"Open\" to open a program. Then click \"Start\"." ) ),
     is_down ( false ),
-    error_flag ( false ),
-    error_image ( ":/images/error.png" )
+    error_flag ( false )
 {
+
+    // Rasterize the Material Symbols "error" SVG into error_image. The
+    // SVG is monochrome black at 24x24; tint it red and render at 128px
+    // so it shows up cleanly when centered on the simulation canvas.
+    QSvgRenderer renderer(QString(":/icons/icons/error.svg"));
+    error_image = QImage(128, 128, QImage::Format_ARGB32);
+    error_image.fill(Qt::transparent);
+    {
+        QPainter p(&error_image);
+        renderer.render(&p);
+        // Recolor the black symbol to a Material red.
+        p.setCompositionMode(QPainter::CompositionMode_SourceIn);
+        p.fillRect(error_image.rect(), QColor(0xd3, 0x2f, 0x2f));
+    }
 
     qRegisterMetaType<QImage>("QImage");
     qRegisterMetaType<std::string>("std::string");

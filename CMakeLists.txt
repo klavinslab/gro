@@ -11,26 +11,38 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
-# Homebrew's qtbase is keg-only, so cmake's default search doesn't find
-# Qt6Config.cmake. Ask `brew --prefix qtbase` and prepend it to
-# CMAKE_PREFIX_PATH so a plain `cmake -S . -B build` works on macOS.
+# Homebrew installs each Qt6 component as its own keg-only formula
+# (qtbase, qtsvg, ...). Ask brew where each lives and hint find_package
+# at it. find_package(Qt6 COMPONENTS Foo) does not honor CMAKE_PREFIX_PATH
+# for sub-package configs once Qt6 itself is found, so we also set the
+# component's _DIR variable explicitly when the package directory exists.
+function(_gro_use_brew_qt_pkg brew_pkg component_dir)
+    if(NOT BREW_EXECUTABLE)
+        return()
+    endif()
+    execute_process(
+        COMMAND ${BREW_EXECUTABLE} --prefix ${brew_pkg}
+        OUTPUT_VARIABLE _prefix
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE _rc
+    )
+    if(NOT _rc EQUAL 0 OR NOT IS_DIRECTORY "${_prefix}")
+        return()
+    endif()
+    set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH};${_prefix}" PARENT_SCOPE)
+    if(component_dir AND IS_DIRECTORY "${_prefix}/lib/cmake/${component_dir}")
+        set(${component_dir}_DIR "${_prefix}/lib/cmake/${component_dir}" PARENT_SCOPE)
+    endif()
+endfunction()
+
 if(APPLE)
     find_program(BREW_EXECUTABLE brew)
-    if(BREW_EXECUTABLE)
-        execute_process(
-            COMMAND ${BREW_EXECUTABLE} --prefix qtbase
-            OUTPUT_VARIABLE _brew_qtbase_prefix
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-            ERROR_QUIET
-            RESULT_VARIABLE _brew_rc
-        )
-        if(_brew_rc EQUAL 0 AND IS_DIRECTORY "${_brew_qtbase_prefix}")
-            list(APPEND CMAKE_PREFIX_PATH "${_brew_qtbase_prefix}")
-        endif()
-    endif()
+    _gro_use_brew_qt_pkg(qtbase "")
+    _gro_use_brew_qt_pkg(qtsvg  Qt6Svg)
 endif()
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Svg)
 qt_standard_project_setup()
 
 # ----------------------------------------------------------------------------
@@ -84,6 +96,7 @@ qt_add_executable(gro MACOSX_BUNDLE
 
 target_link_libraries(gro PRIVATE
     Qt6::Widgets
+    Qt6::Svg
     ccl
     chipmunk_static
 )

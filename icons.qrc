@@ -1,15 +1,12 @@
 <RCC>
     <qresource prefix="/icons">
-        <file>icons/open.png</file>
-        <file>icons/reload.png</file>
-        <file>icons/start.png</file>
-        <file>icons/step.png</file>
-        <file>icons/stop.png</file>
-        <file>icons/zoom_in.png</file>
-        <file>icons/zoom_out.png</file>
-    </qresource>
-    <qresource prefix="/images">
-        <file>icons/error.tiff</file>
-        <file>icons/error.png</file>
+        <file>icons/folder_open.svg</file>
+        <file>icons/refresh.svg</file>
+        <file>icons/play_arrow.svg</file>
+        <file>icons/pause.svg</file>
+        <file>icons/skip_next.svg</file>
+        <file>icons/zoom_in.svg</file>
+        <file>icons/zoom_out.svg</file>
+        <file>icons/error.svg</file>
     </qresource>
 </RCC>

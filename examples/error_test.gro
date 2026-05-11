@@ -1,0 +1,15 @@
+// error_test.gro — deliberately malformed; opening this should trigger
+// gro's parse-error overlay (a red Material Symbols "error" glyph
+// centered on the canvas).
+
+include gro
+
+program p() := {
+
+  // Garbage: an unmatched bracket and a stray token where a statement
+  // is expected. CCL's parser will reject this on the first pass.
+  true : { foo bar baz [[[ }
+
+}
+
+p();
