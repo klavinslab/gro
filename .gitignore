@@ -1,5 +1,24 @@
-# objects and archives
-Ingore*.[oa]
+# Build directories
+build/
+build-*/
 
-# ignore user settings file
-gro.pro.user
+# CMake artifacts (if configured in-source, which you shouldn't)
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
+
+# Packaging output
+*.dmg
+
+# Object files and archives
+*.[oa]
+
+# IDE / editor
+.vscode/
+.idea/
+*.user
+
+# macOS
+.DS_Store
