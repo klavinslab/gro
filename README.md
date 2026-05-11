@@ -23,7 +23,7 @@ brew install qt cmake bison flex m4
 git clone https://github.com/klavinslab/gro.git
 cd gro
 
-cmake -S . -B build -DCMAKE_PREFIX_PATH=$(brew --prefix qtbase)
+cmake -S . -B build
 cmake --build build -j
 
 open build/gro.app

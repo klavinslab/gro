@@ -11,6 +11,25 @@ set(CMAKE_AUTOUIC ON)
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 
+# Homebrew's qtbase is keg-only, so cmake's default search doesn't find
+# Qt6Config.cmake. Ask `brew --prefix qtbase` and prepend it to
+# CMAKE_PREFIX_PATH so a plain `cmake -S . -B build` works on macOS.
+if(APPLE)
+    find_program(BREW_EXECUTABLE brew)
+    if(BREW_EXECUTABLE)
+        execute_process(
+            COMMAND ${BREW_EXECUTABLE} --prefix qtbase
+            OUTPUT_VARIABLE _brew_qtbase_prefix
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            ERROR_QUIET
+            RESULT_VARIABLE _brew_rc
+        )
+        if(_brew_rc EQUAL 0 AND IS_DIRECTORY "${_brew_qtbase_prefix}")
+            list(APPEND CMAKE_PREFIX_PATH "${_brew_qtbase_prefix}")
+        endif()
+    endif()
+endif()
+
 find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets)
 qt_standard_project_setup()
 
