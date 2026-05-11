@@ -154,12 +154,16 @@ add_custom_command(TARGET gro POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E rm -rf
         "$<TARGET_BUNDLE_CONTENT_DIR:gro>/Resources/examples"
         "$<TARGET_BUNDLE_CONTENT_DIR:gro>/Resources/include"
+        "$<TARGET_BUNDLE_CONTENT_DIR:gro>/Resources/python"
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_CURRENT_SOURCE_DIR}/examples
         "$<TARGET_BUNDLE_CONTENT_DIR:gro>/Resources/examples"
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         "$<TARGET_BUNDLE_CONTENT_DIR:gro>/Resources/include"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_CURRENT_SOURCE_DIR}/python
+        "$<TARGET_BUNDLE_CONTENT_DIR:gro>/Resources/python"
     VERBATIM
 )
 

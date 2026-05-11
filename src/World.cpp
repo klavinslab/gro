@@ -77,7 +77,7 @@ void Cell::init ( const int * q0, const int * rep0, float frac ) {
 
 }
 
-void World::init () {
+void World::init_state () {
 
     // Time
     t = 0.0f;
@@ -92,21 +92,81 @@ void World::init () {
     cpSpaceSetDamping       ( space, DAMPING );
     cpSpaceSetCollisionSlop ( space, 0.2 );
 
-    // Default parameters. These will be over-written when/if the program
-    // defines them via "set". But just in case the user does not do this,
-    // they are defined here.
+    // Default parameters. These match include/gro.gro's defaults so a
+    // .py program starts in the same world state as a .gro one.
+    // Programs can override any of these by calling set_param.
+
+    set_param ( "dt", 0.02 );
 
     set_param ( "chemostat_width", 200);
     set_param ( "chemostat_height", 200);
     set_param ( "signal_area_width", 800);
     set_param ( "signal_num_divisions", 160);
     set_param ( "population_max", 1000 );
+    set_param ( "throttle", 0.0 );
 
-    set_param ( "signal_grid_width", 800 );
+    set_param ( "signal_grid_width",  800 );
     set_param ( "signal_grid_height", 800 );
-    set_param ( "signal_element_size", 5 );
+    set_param ( "signal_element_size",  5 );
 
-    // Program
+    // Reporters
+    set_param ( "gfp_saturation_min",  0.0 );
+    set_param ( "gfp_saturation_max", 50.0 );
+    set_param ( "rfp_saturation_min",  0.0 );
+    set_param ( "rfp_saturation_max", 50.0 );
+    set_param ( "yfp_saturation_min",  0.0 );
+    set_param ( "yfp_saturation_max", 50.0 );
+    set_param ( "cfp_saturation_min",  0.0 );
+    set_param ( "cfp_saturation_max", 50.0 );
+
+    // E. coli
+    set_param ( "ecoli_growth_rate",          0.0346574 );  // reactions/min
+    set_param ( "ecoli_init_size",            1.57 );       // fL
+    set_param ( "ecoli_division_size_mean",   3.14 );       // fL
+    set_param ( "ecoli_division_size_var",    0.005 );      // fL
+    set_param ( "ecoli_diameter",             1.0 );
+    set_param ( "ecoli_scale",               10.0 );        // pixels/um
+
+    // Yeast
+    set_param ( "yeast_growth_rate",          0.015 );
+    set_param ( "yeast_division_size_mean",   1.0 );
+    set_param ( "yeast_division_size_variance", 0.0001 );
+
+}
+
+void World::init_chemostat_walls () {
+
+    if ( !chemostat_mode )
+        return;
+
+    cpShape *shape;
+    cpBody *staticBody = cpSpaceGetStaticBody(space);
+
+    int w = get_param("chemostat_width")/2,
+            h = get_param("chemostat_height")/2;
+
+    auto add_wall = [&](cpVect a, cpVect b) {
+        cpShape *s = cpSpaceAddShape(space, cpSegmentShapeNew(staticBody, a, b, 5.0f));
+        cpShapeSetElasticity ( s, 1.0f );
+        cpShapeSetFriction   ( s, 0.0f );
+        return s;
+    };
+
+    shape = add_wall ( cpv(-400,h), cpv(-w,h)  );
+    shape = add_wall ( cpv(-w,h),   cpv(-w,-h) );
+    shape = add_wall ( cpv(-w,-h),  cpv(w,-h)  );
+    shape = add_wall ( cpv(w,-h),   cpv(w,h)   );
+    shape = add_wall ( cpv(w,h),    cpv(400,h) );
+    (void) shape;
+
+}
+
+void World::init () {
+
+    init_state();
+
+    // Program (CCL path only; Python path runs the user file instead
+    // of calling prog->init).
     ASSERT ( prog != NULL );
 
     if ( !program_initialized ) {
@@ -119,30 +179,7 @@ void World::init () {
 
     }
 
-    // Chemostat
-    if ( chemostat_mode ) {
-
-        cpShape *shape;
-        cpBody *staticBody = cpSpaceGetStaticBody(space);
-
-        int w = get_param("chemostat_width")/2,
-                h = get_param("chemostat_height")/2;
-
-        auto add_wall = [&](cpVect a, cpVect b) {
-            cpShape *s = cpSpaceAddShape(space, cpSegmentShapeNew(staticBody, a, b, 5.0f));
-            cpShapeSetElasticity ( s, 1.0f );
-            cpShapeSetFriction   ( s, 0.0f );
-            return s;
-        };
-
-        shape = add_wall ( cpv(-400,h), cpv(-w,h)  );
-        shape = add_wall ( cpv(-w,h),   cpv(-w,-h) );
-        shape = add_wall ( cpv(-w,-h),  cpv(w,-h)  );
-        shape = add_wall ( cpv(w,-h),   cpv(w,h)   );
-        shape = add_wall ( cpv(w,h),    cpv(400,h) );
-        (void) shape;
-
-    }
+    init_chemostat_walls();
 
 }
 
@@ -345,7 +382,7 @@ void World::update ( void ) {
 
     if ( population->size() < get_param ( "population_max" ) ) {
 
-        prog->world_update ( this );
+        if ( prog ) prog->world_update ( this );  // null for Python-loaded worlds (no main yet)
         std::list<Cell *>::iterator j;
 
         // update each cell

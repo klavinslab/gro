@@ -10,6 +10,8 @@
 
 #include <string>
 
+class World;
+
 class PythonRuntime {
 public:
     static PythonRuntime & instance();
@@ -18,9 +20,16 @@ public:
     // many times. Returns true if Python is ready to use.
     bool ensureInitialized(std::string & err);
 
-    // Loads a .py file as a gro program. Milestone 1: always fails
-    // with a "not implemented" message after confirming the embedded
-    // Python actually runs and the _core module imports cleanly.
+    // The simulator sets the active World before loadProgram runs so
+    // pybind11-bound functions like ecoli() / set_param() / signal()
+    // know where to add their effects. Cleared after loadProgram
+    // returns, regardless of success.
+    void setCurrentWorld(World * w) { current_world_ = w; }
+    World * getCurrentWorld() const { return current_world_; }
+
+    // Loads and executes a .py file. On Python exceptions, formats the
+    // traceback into err and returns false. Caller is responsible for
+    // having called setCurrentWorld() first.
     bool loadProgram(const char * path, std::string & err);
 
     // Finalize on app shutdown. Idempotent.
@@ -34,6 +43,7 @@ private:
     PythonRuntime & operator=(const PythonRuntime &) = delete;
 
     bool initialized_ = false;
+    World * current_world_ = nullptr;
 };
 
 #endif // GRO_PYTHON_RUNTIME_H

@@ -151,19 +151,32 @@ bool GroThread::parse ( const char * path ) {
     //if ( world )
     //    delete world;
 
-    // .py files are routed to the embedded Python runtime instead of
-    // the CCL parser. Milestone 1: this always returns a "not
-    // implemented" error after confirming Python initializes.
+    // .py files are routed to the embedded Python runtime. The
+    // simulator creates the World, then PythonRuntime runs the user's
+    // .py file, during which bound functions (ecoli, signal, …) add
+    // cells/signals to the world.
     if (isPythonProgram(path)) {
+        world = new World(this);
+        world->init_state();        // chipmunk space + default params
+
+        PythonRuntime & rt = PythonRuntime::instance();
+        rt.setCurrentWorld(world);
+
         std::string err;
-        bool ok = PythonRuntime::instance().loadProgram(path, err);
+        bool ok = rt.loadProgram(path, err);
+
+        rt.setCurrentWorld(nullptr);
+
         if (!ok) {
             error_string = err;
+            delete world;
+            world = NULL;
             CHANGE_STATE(NO_PROGRAM);
             return false;
         }
-        // Unreachable in milestone 1, but the path is here for later
-        // milestones to fill in (build a world from the Python module).
+
+        world->init_chemostat_walls();   // safe no-op if chemostat is off
+
         CHANGE_STATE(READY);
         RESIZE;
         RENDER;
