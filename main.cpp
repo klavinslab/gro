@@ -32,7 +32,9 @@ int main(int argc, char *argv[])
     qt_set_sequence_auto_mnemonic(true);
 
     QApplication a(argc, argv);
-    chdir((QCoreApplication::applicationDirPath() + "/../../..")
+    // examples/ and include/ are bundled into Contents/Resources/ by
+    // CMake, so chdir there for the CCL lexer's include resolution.
+    chdir((QCoreApplication::applicationDirPath() + "/../Resources")
               .toLocal8Bit().constData());
     Q_INIT_RESOURCE(icons);
     Gui w(argc,argv);

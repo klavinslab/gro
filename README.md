@@ -35,6 +35,13 @@ don't need to put them on `PATH` manually.
 The first `cmake -S ... -B ...` invocation clones `ccl` and `Chipmunk2D`
 into `build/_deps/`. Subsequent configures are cached.
 
+To build a distributable DMG on macOS:
+
+```bash
+cmake --build build --target package
+# → build/gro-<version>-mac.dmg
+```
+
 Linux
 ---
 
