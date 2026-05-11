@@ -19,6 +19,7 @@
 
 #include "EColi.h"
 #include "Programs.h"
+#include <QPainterPath>
 
 #define FMULT 0.125
 

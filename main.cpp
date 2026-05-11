@@ -21,6 +21,7 @@
 
 #include <QApplication>
 #include <QDir>
+#include <unistd.h>
 #include "gui.h"
 
 extern void qt_set_sequence_auto_mnemonic(bool b);
@@ -34,6 +35,8 @@ int main(int argc, char *argv[])
     qt_set_sequence_auto_mnemonic(true);
 
     QApplication a(argc, argv);
+    chdir((QCoreApplication::applicationDirPath() + "/../../..")
+              .toLocal8Bit().constData());
     Q_INIT_RESOURCE(icons);
     Gui w(argc,argv);
     w.show();

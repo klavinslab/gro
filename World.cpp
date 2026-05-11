@@ -19,6 +19,7 @@
 
 #ifndef NOGUI
 #include <GroThread.h>
+#include <QPainterPath>
 #endif
 
 #include "Micro.h"

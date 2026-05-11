@@ -22,12 +22,11 @@ win32 {
 }
 
 macx {
-  QMAKE_CXXFLAGS += -fast
 }
 
 makelinks.commands += echo Making links in $$OUT_PWD;
-makelinks.commands += ln -s -f examples $${OUT_PWD}/examples;
-makelinks.commands += ln -s -f include $${OUT_PWD}/include;
+makelinks.commands += ln -shf $${PWD}/examples $${OUT_PWD}/examples;
+makelinks.commands += ln -shf $${PWD}/include $${OUT_PWD}/include;
 
 QMAKE_EXTRA_TARGETS += makelinks
 POST_TARGETDEPS += makelinks
@@ -72,7 +71,6 @@ HEADERS  += gui.h \
     Theme.h \
     EColi.h \
     Cell.h \
-    ui_gui.h \
     Yeast.h
 
 contains ( CONFIG, nogui ) {
@@ -85,8 +83,8 @@ contains ( CONFIG, nogui ) {
 }
 
 macx {
-  LIBS += -L../build-ccl -lccl -L../chipmunk/src -lchip
-  PRE_TARGETDEPS += ../build-ccl/libccl.a
+  LIBS += -L../build-ccl -lccl -L../build-chipmunk -lchipmunk
+  PRE_TARGETDEPS += ../build-ccl/libccl.a ../build-chipmunk/libchipmunk.a
   DEPENDPATH += ../chipmunk/
   INCLUDEPATH += ../ccl/ ../chipmunk/include/chipmunk/
   # mytarget.commands = COPY EXAMPLES FILE TO APPLICATION DIRECTORY
