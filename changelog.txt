@@ -1,3 +1,26 @@
+New in 1.0.0
+--------------------------------------------------------------------------------
+* Build system overhauled: qmake replaced with CMake (3.24+).
+* Ported from Qt 5 to Qt 6 (tested on Qt 6.11).
+* Ported the physics engine from Chipmunk 5.3.5 to Chipmunk 7.0.3.
+* Dependencies (ccl, Chipmunk2D) are fetched automatically by CMake on
+  first configure. New-dev setup is now just:
+      brew install qt cmake bison flex m4
+      git clone gro && cd gro && cmake -S . -B build && cmake --build build
+* Builds natively on Apple Silicon (arm64).
+* Disk-image target: `cmake --build build --target package` produces a
+  self-contained gro-<version>-mac.dmg with Qt frameworks bundled.
+* The examples/ and include/ directories are now copied inside the
+  app bundle (Contents/Resources/), so gro.app is portable.
+* Version string in the About panel is driven from CMakeLists.txt's
+  project(VERSION ...) — bump it in one place.
+* Chemostat wash force tuned for Chipmunk 7. (Chipmunk 5 silently
+  accumulated forces between steps; v7 zeros them, so the old "250*dt"
+  per-step nudge was effectively no-op. Replaced with a constant force
+  of 3750 to recover the visual behavior.)
+* Various compiler warnings fixed: format-string security, sprintf →
+  snprintf, falling off non-void function.
+
 New in beta.5
 --------------------------------------------------------------------------------
 * New command: zoom(z) sets the gui's zoom level.
