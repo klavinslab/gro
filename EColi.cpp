@@ -19,6 +19,7 @@
 
 #include "EColi.h"
 #include "Programs.h"
+#include <QPainterPath>
 
 #define FMULT 0.125
 
@@ -36,14 +37,15 @@ EColi::EColi ( World * w, float x, float y, float a, float v ) : Cell ( w ), vol
   float size = DEFAULT_ECOLI_SCALE*get_length();
   MAKE_VERTS;
 
-  body = cpSpaceAddBody(space, cpBodyNew(MASS, cpMomentForPoly(MASS, 8, verts, cpvzero)));
+  body = cpSpaceAddBody(space, cpBodyNew(MASS, cpMomentForPoly(MASS, 8, verts, cpvzero, 0.0)));
 
-  body->p = cpv ( x, y );
-  body->v = cpv ( 0, 0 );
-  body->a = a;
-        
-  shape = cpSpaceAddShape(space, cpPolyShapeNew(body, 8, verts, cpvzero)); // deleted in ~Cell
-  shape->e = ELASTIC; shape->u = FRICTION;
+  cpBodySetPosition ( body, cpv ( x, y ) );
+  cpBodySetVelocity ( body, cpv ( 0, 0 ) );
+  cpBodySetAngle    ( body, a );
+
+  shape = cpSpaceAddShape(space, cpPolyShapeNew(body, 8, verts, cpTransformIdentity, 0.0)); // deleted in ~Cell
+  cpShapeSetElasticity ( shape, ELASTIC );
+  cpShapeSetFriction   ( shape, FRICTION );
 
   //cpSpaceActivateBody(space,body);
 
@@ -60,8 +62,8 @@ EColi::EColi ( World * w, float x, float y, float a, float v ) : Cell ( w ), vol
 
 void EColi::render ( Theme * theme, GroPainter * painter ) {
 
-  cpPolyShape * poly = (cpPolyShape *) shape;
-  int count = poly->numVerts;
+  int count = cpPolyShapeGetCount(shape);
+  cpBody * b = cpShapeGetBody(shape);
 
   double
     gfp = ( rep[GFP] / volume - world->get_param ( "gfp_saturation_min" ) ) / ( world->get_param ( "gfp_saturation_max" ) - world->get_param ( "gfp_saturation_min" ) ),
@@ -81,11 +83,11 @@ void EColi::render ( Theme * theme, GroPainter * painter ) {
   painter->setBrush(col);
 
   QPainterPath path;
-  cpVect v = poly->tVerts[0];
+  cpVect v = cpBodyLocalToWorld(b, cpPolyShapeGetVert(shape, 0));
   path.moveTo(v.x,v.y);
 
   for ( int i=1; i<count; i++ ) {
-      v = poly->tVerts[i];
+      v = cpBodyLocalToWorld(b, cpPolyShapeGetVert(shape, i));
       path.lineTo(v.x,v.y);
   }
 
@@ -104,7 +106,7 @@ void EColi::update ( void ) {
 
   float size = DEFAULT_ECOLI_SCALE*get_length();
   MAKE_VERTS;
-  cpPolyShapeSetVerts ( shape, 8, verts, cpvzero );
+  cpPolyShapeSetVerts ( shape, 8, verts, cpTransformIdentity );
 
   if ( program != NULL )
     program->update ( world, this );
@@ -132,17 +134,18 @@ EColi * EColi::divide ( void ) {
     float oldsize = DEFAULT_ECOLI_SCALE * get_length();
 
     volume = frac * oldvol;
-    float a = shape->body->a;
+    cpBody * b = cpShapeGetBody(shape);
+    float a = cpBodyGetAngle(b);
     float da = 0.25 * (frand()-0.5);
 
     float size = DEFAULT_ECOLI_SCALE * get_length();    
     MAKE_VERTS;
 
-    cpPolyShapeSetVerts ( shape, 8, verts, cpvzero );
-    cpVect oldpos = shape->body->p;
-    shape->body->p = oldpos + cpvmult ( cpv ( cos ( a - r*da ),
-                                              sin ( a - r*da ) ),  (-r)*0.5*oldsize*(1-frac) );
-    shape->body->a = a - r*da;
+    cpPolyShapeSetVerts ( shape, 8, verts, cpTransformIdentity );
+    cpVect oldpos = cpBodyGetPosition(b);
+    cpBodySetPosition ( b, oldpos + cpvmult ( cpv ( cos ( a - r*da ),
+                                                    sin ( a - r*da ) ),  (-r)*0.5*oldsize*(1-frac) ) );
+    cpBodySetAngle ( b, a - r*da );
 
     float dvol = (1-frac)*oldvol;
 

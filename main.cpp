@@ -21,6 +21,7 @@
 
 #include <QApplication>
 #include <QDir>
+#include <unistd.h>
 #include "gui.h"
 
 extern void qt_set_sequence_auto_mnemonic(bool b);
@@ -28,12 +29,11 @@ extern void qt_set_sequence_auto_mnemonic(bool b);
 int main(int argc, char *argv[])
 {
 
-    cpInitChipmunk();
-    cp_collision_slop = 0.2f;
-
     qt_set_sequence_auto_mnemonic(true);
 
     QApplication a(argc, argv);
+    chdir((QCoreApplication::applicationDirPath() + "/../../..")
+              .toLocal8Bit().constData());
     Q_INIT_RESOURCE(icons);
     Gui w(argc,argv);
     w.show();
@@ -51,9 +51,6 @@ int main(int argc, char *argv[])
 
 int main (int argc, char *argv[])
 {
-
-    cpInitChipmunk();
-    cp_collision_slop = 0.2f;
 
     World * world;
     MicroProgram * current_program;

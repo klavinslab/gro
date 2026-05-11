@@ -18,7 +18,8 @@
 //
 
 #ifndef NOGUI
-#include <GroThread.h>
+#include "GroThread.h"
+#include <QPainterPath>
 #endif
 
 #include "Micro.h"
@@ -59,7 +60,6 @@ World::~World ( void ) {
     for ( k=0; k<signal_list.size(); k++ )
         delete signal_list[k];
 
-    cpSpaceFreeChildren(space);
     cpSpaceFree(space);
 
     delete population;
@@ -87,11 +87,10 @@ void World::init () {
     population = new std::list<Cell *>; // deleted in ~World
 
     // Chipmunk stuff
-    cpResetShapeIdCounter();
     space = cpSpaceNew(); // freed in ~World
-    cpSpaceResizeActiveHash(space, 60.0f, 10000);
-    space->iterations = ITERATIONS;
-    space->damping = DAMPING;
+    cpSpaceSetIterations    ( space, ITERATIONS );
+    cpSpaceSetDamping       ( space, DAMPING );
+    cpSpaceSetCollisionSlop ( space, 0.2 );
 
     // Default parameters. These will be over-written when/if the program
     // defines them via "set". But just in case the user does not do this,
@@ -124,25 +123,24 @@ void World::init () {
     if ( chemostat_mode ) {
 
         cpShape *shape;
-        cpBody *staticBody = &space->staticBody;
+        cpBody *staticBody = cpSpaceGetStaticBody(space);
 
         int w = get_param("chemostat_width")/2,
                 h = get_param("chemostat_height")/2;
 
-        shape = cpSpaceAddShape(space, cpSegmentShapeNew(staticBody, cpv(-400,h), cpv(-w,h), 5.0f));
-        shape->e = 1.0f; shape->u = 0.0f;
+        auto add_wall = [&](cpVect a, cpVect b) {
+            cpShape *s = cpSpaceAddShape(space, cpSegmentShapeNew(staticBody, a, b, 5.0f));
+            cpShapeSetElasticity ( s, 1.0f );
+            cpShapeSetFriction   ( s, 0.0f );
+            return s;
+        };
 
-        shape = cpSpaceAddShape(space, cpSegmentShapeNew(staticBody, cpv(-w,h), cpv(-w,-h), 5.0f));
-        shape->e = 1.0f; shape->u = 0.0f;
-
-        shape = cpSpaceAddShape(space, cpSegmentShapeNew(staticBody, cpv(-w,-h), cpv(w,-h), 5.0f));
-        shape->e = 1.0f; shape->u = 0.0f;
-
-        shape = cpSpaceAddShape(space, cpSegmentShapeNew(staticBody, cpv(w,-h), cpv(w,h), 5.0f));
-        shape->e = 1.0f; shape->u = 0.0f;
-
-        shape = cpSpaceAddShape(space, cpSegmentShapeNew(staticBody, cpv(w,h), cpv(400,h), 5.0f));
-        shape->e = 1.0f; shape->u = 0.0f;
+        shape = add_wall ( cpv(-400,h), cpv(-w,h)  );
+        shape = add_wall ( cpv(-w,h),   cpv(-w,-h) );
+        shape = add_wall ( cpv(-w,-h),  cpv(w,-h)  );
+        shape = add_wall ( cpv(w,-h),   cpv(w,h)   );
+        shape = add_wall ( cpv(w,h),    cpv(400,h) );
+        (void) shape;
 
     }
 
@@ -166,7 +164,6 @@ void World::restart ( void ) {
         delete (*j);
     }
 
-    cpSpaceFreeChildren(space);
     cpSpaceFree(space);
 
     delete population;
@@ -384,7 +381,12 @@ void World::update ( void ) {
 
             for ( j=population->begin(); j!=population->end(); j++ ) {
 
-                cpBodyApplyForce ( (*j)->get_shape()->body, chemostat_flow ( (*j)->get_x(), (*j)->get_y(), 250*get_sim_dt() ), cpv(0,0) );
+                cpBody * cb = cpShapeGetBody((*j)->get_shape());
+                // Chipmunk 5 did NOT auto-reset body->f between steps, so the
+                // original `250*dt` per-step force accumulated over time and
+                // grew quadratically. Chipmunk 7 zeros f every step, so we
+                // apply 250 directly as a constant force.
+                cpBodyApplyForceAtWorldPoint ( cb, chemostat_flow ( (*j)->get_x(), (*j)->get_y(), 3750 ), cpBodyGetPosition(cb) );
 
                 if ( out_of_bounds ( (*j)->get_x(), (*j)->get_y() ) ) {
 

@@ -27,12 +27,13 @@ Yeast::Yeast ( World * w, float x, float y, float a, float v, bool b )
   cpBody *body = cpSpaceAddBody(space, cpBodyNew(r, cpMomentForCircle(10*v, 0.0f, r, cpvzero)));
   parent_cell = NULL;
 
-  body->p = cpv ( x, y );
-  body->v = cpv ( 0, 0 );
-  body->a = a;
+  cpBodySetPosition ( body, cpv ( x, y ) );
+  cpBodySetVelocity ( body, cpv ( 0, 0 ) );
+  cpBodySetAngle    ( body, a );
 
   shape = cpSpaceAddShape(space, cpCircleShapeNew(body, radius(), cpvzero));
-  shape->e = ELASTIC; shape->u = FRICTION; 
+  cpShapeSetElasticity ( shape, ELASTIC );
+  cpShapeSetFriction   ( shape, FRICTION );
 
   int i;
   for ( i=0; i<MAX_STATE_NUM; i++ ) q[i] = 0;

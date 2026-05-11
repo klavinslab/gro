@@ -18,7 +18,7 @@
 //
 
 #ifndef NOGUI
-#include <GroThread.h>
+#include "GroThread.h"
 #endif
 
 #include "Micro.h"

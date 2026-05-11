@@ -8,26 +8,48 @@ Documentation
 
 http://depts.washington.edu/soslab/gro/docview.html.
 
-Compiling
+Building
 ===
 
-To get the latest stable build, go to http://depts.washington.edu/soslab/gro 
+gro builds against **Qt 6** and **CMake 3.24+**. Dependencies (`ccl`,
+`Chipmunk2D`) are fetched automatically — no manual setup required.
 
-To compile under linux or mac, see the instructions at https://github.com/klavinslab/gro/tree/master/doc
-    
-Apple Paths
-===
+macOS
+---
 
-If you are on a Mac you may have discovered an issue with gro not starting properly because of an old directory structure issue. David Soloviechik uses this AppleScript to solve that problem
+```bash
+brew install qt cmake bison flex m4
 
-    tell application "Finder"
-    	set current_path to container of (path to me) as alias
-    end tell
-    set dir to (POSIX path of current_path)
-    do shell script "cd \"" & dir & "\" && gro.app/Contents/MacOS/gro > /dev/null 2>&1 &"
+git clone https://github.com/klavinslab/gro.git
+cmake -S gro -B build \
+    -DCMAKE_PREFIX_PATH=$(brew --prefix qtbase)
+cmake --build build -j
 
-To use this script, put it in a file called `run_gro.scpt` within the gro directory and then at the command line run
+open build/gro.app
+```
 
-    > osascript run_gro.scpt
-    
-    
+The `bison`, `flex`, and `m4` formulas are needed to build the bundled
+parser. `cmake` resolves them automatically once they are installed; you
+don't need to put them on `PATH` manually.
+
+The first `cmake -S ... -B ...` invocation clones `ccl` and `Chipmunk2D`
+into `build/_deps/`. Subsequent configures are cached.
+
+Linux
+---
+
+```bash
+sudo apt install qt6-base-dev cmake bison flex
+git clone https://github.com/klavinslab/gro.git
+cmake -S gro -B build
+cmake --build build -j
+./build/gro
+```
+
+Notes
+---
+
+- Examples live in `examples/`. Open one via `File → Open` in the GUI.
+- `main.cpp` `chdir`s to the build directory at startup so the `examples/`
+  and `include/` symlinks (created by `CMakeLists.txt` as a post-build
+  step) resolve correctly.

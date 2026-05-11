@@ -20,7 +20,7 @@
 #ifndef CELL_H
 #define CELL_H
 
-#include "chipmunk_private.h"
+#include "chipmunk.h"
 #include "chipmunk_unsafe.h"
 #include "ccl.h"
 #include "Defines.h"
@@ -80,9 +80,9 @@ class Cell {
 
   void set_prog ( MicroProgram * p ) { program = p; }
 
-  float get_x ( void ) { return shape->body->p.x; }
-  float get_y ( void ) { return shape->body->p.y; }
-  float get_theta ( void ) { return shape->body->a; }
+  float get_x ( void ) { return cpBodyGetPosition(cpShapeGetBody(shape)).x; }
+  float get_y ( void ) { return cpBodyGetPosition(cpShapeGetBody(shape)).y; }
+  float get_theta ( void ) { return cpBodyGetAngle(cpShapeGetBody(shape)); }
 
   virtual void update ( void ) {}
   virtual Value * eval ( Expr * ) { return NULL; }
