@@ -68,7 +68,8 @@ from gro import *
 This mirrors CCL's `include gro` one-for-one. The `gro` module curates
 `__all__` so the wildcard import is well-defined; it exposes only the
 API surface listed in this document (`Program`, `State`, `when`,
-`always`, `signal`, `ecoli`, `set_param`, `get_param`, `set_signal`,
+`always`, `rate`, `signal`, `ecoli`, `set_param`, `get_param`,
+`set_signal`,
 `get_signal`, `emit_signal`, `absorb_signal`, `dt`, `rate`, `rand`,
 `compose`, `Composed`, `Preserved`, `Halved`, `on_tick`, …) plus the
 exception types (`GroError`, `GroLoadError`).
@@ -80,9 +81,13 @@ doesn't care which style is used.
 ### Program definition
 
 Programs are subclasses of `Program`. State lives in a declared,
-typed schema; rules are methods decorated with `@when(predicate)` or
-`@always`. `@when(p)` reads line-for-line as CCL's `p : { ... }`
-guarded command.
+typed schema; rules are methods decorated with one of:
+
+- `@when(predicate)` — fires when `predicate(self)` is true. Reads
+  line-for-line as CCL's `predicate : { ... }`.
+- `@always` — fires every tick. Sugar for `@when(lambda self: True)`.
+- `@rate(p)` — fires probabilistically with rate `p` per simulated
+  time unit. Sugar for `@when(lambda self: random.random() < p * dt)`.
 
 ```python
 from gro import *
@@ -117,7 +122,7 @@ Semantic correspondence with CCL:
 | `x := 0;` (initializer)                    | field in `state = State(x: int = 0)`    |
 | `condition : { actions }` (guarded cmd)    | `@when(lambda self: ...)`               |
 | `true : { … }`                             | `@always`                               |
-| `rate(0.1) : { … }`                        | `@when(rate(0.1))`                      |
+| `rate(0.1) : { … }`                        | `@rate(0.1)`                            |
 | `program main() := { … };`                 | `on_tick(fn)` or a `Main` class         |
 | `program r(x) := p(x+1) + p(x+2);`         | `r = compose(P.with_args(x+1), …)`      |
 | `program h(x) := p(x) + g() sharing t;`    | `h = compose(P, G, share=["t"])`        |
