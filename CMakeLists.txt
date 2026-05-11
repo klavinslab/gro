@@ -75,22 +75,22 @@ FetchContent_MakeAvailable(ccl chipmunk)
 # gro executable
 # ----------------------------------------------------------------------------
 qt_add_executable(gro MACOSX_BUNDLE
-    main.cpp
-    gui.cpp
-    gui.ui
-    GroThread.cpp
-    GroWidget.cpp
-    Messages.cpp
-    Programs.cpp
-    Signal.cpp
-    Themes.cpp
-    Utility.cpp
-    World.cpp
-    EColi.cpp
-    Gro.cpp
-    GroPainter.cpp
-    Cell.cpp
-    reaction.cpp
+    src/main.cpp
+    src/gui.cpp
+    src/gui.ui
+    src/GroThread.cpp
+    src/GroWidget.cpp
+    src/Messages.cpp
+    src/Programs.cpp
+    src/Signal.cpp
+    src/Themes.cpp
+    src/Utility.cpp
+    src/World.cpp
+    src/EColi.cpp
+    src/Gro.cpp
+    src/GroPainter.cpp
+    src/Cell.cpp
+    src/reaction.cpp
     icons.qrc
 )
 
