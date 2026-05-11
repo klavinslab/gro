@@ -310,7 +310,7 @@ void World::render ( GroPainter * painter ) {
 
     theme.apply_message_color(painter);
 
-    sprintf ( buf, "Cells: %d, Max: %d, t = %.2f min", (int) population->size(), (int) get_param ( "population_max" ), t );
+    snprintf ( buf, sizeof(buf), "Cells: %d, Max: %d, t = %.2f min", (int) population->size(), (int) get_param ( "population_max" ), t );
     drawString ( painter, -painter->get_size().width()/2+10, -painter->get_size().height()/2+20, buf );
     dec = 32;
 

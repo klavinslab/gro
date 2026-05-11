@@ -116,7 +116,9 @@ void EColi::update ( void ) {
 Value * EColi::eval ( Expr * e ) {
 
   if ( program != NULL )
-    program->eval ( world, this, e );
+    return program->eval ( world, this, e );
+
+  return NULL;
 
 }
 

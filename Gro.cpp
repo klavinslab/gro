@@ -624,7 +624,7 @@ Value * gro_fprint ( std::list<Value *> * args, Scope * s ) {
                 strm << (*i)->tostring();
         }
 
-        fprintf ( world->fileio_list[index], strm.str().c_str() );
+        fprintf ( world->fileio_list[index], "%s", strm.str().c_str() );
         fflush ( world->fileio_list[index] );
     }
 

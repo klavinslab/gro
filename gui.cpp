@@ -82,7 +82,7 @@ void Gui::about ( void ) {
     GetCurrentDir(cCurrentPath, sizeof(cCurrentPath));
     cCurrentPath[sizeof(cCurrentPath) - 1] = '\0';
     char buf[1000];
-    sprintf (buf,"Working directory: %s", cCurrentPath);
+    snprintf (buf, sizeof(buf), "Working directory: %s", cCurrentPath);
     console.insertHtml(buf);
 
 }
