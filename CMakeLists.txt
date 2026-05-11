@@ -20,10 +20,9 @@ qt_standard_project_setup()
 include(FetchContent)
 
 # ccl: Klavins Lab's embedded interpreted language.
-# Pinned to the qt-upgrade branch until that merges to master.
 FetchContent_Declare(ccl
     GIT_REPOSITORY https://github.com/klavinslab/ccl.git
-    GIT_TAG        qt-upgrade
+    GIT_TAG        75a63a1d6bde8f3d82e96bd8fa9e42d7594804eb  # master
 )
 
 # Chipmunk2D 7.0.3: physics engine.
