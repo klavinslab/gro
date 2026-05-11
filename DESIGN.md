@@ -67,7 +67,7 @@ from gro import *
 
 This mirrors CCL's `include gro` one-for-one. The `gro` module curates
 `__all__` so the wildcard import is well-defined; it exposes only the
-API surface listed in this document (`Program`, `State`, `rule`,
+API surface listed in this document (`Program`, `State`, `when`,
 `always`, `signal`, `ecoli`, `set_param`, `get_param`, `set_signal`,
 `get_signal`, `emit_signal`, `absorb_signal`, `dt`, `rate`, `rand`,
 `compose`, `Composed`, `Preserved`, `Halved`, `on_tick`, …) plus the
@@ -80,8 +80,9 @@ doesn't care which style is used.
 ### Program definition
 
 Programs are subclasses of `Program`. State lives in a declared,
-typed schema; rules are methods decorated with `@rule(when=...)` or
-`@always`.
+typed schema; rules are methods decorated with `@when(predicate)` or
+`@always`. `@when(p)` reads line-for-line as CCL's `p : { ... }`
+guarded command.
 
 ```python
 from gro import *
@@ -99,7 +100,7 @@ class Leader(Program):
     def tick(self):
         self.state.t += dt
 
-    @rule(when=lambda self: self.state.t > 10)
+    @when(lambda self: self.state.t > 10)
     def fire(self):
         self.emit_signal(ahl, 100)
         self.state.t = 0
@@ -114,9 +115,9 @@ Semantic correspondence with CCL:
 | `include gro` (standard library)           | `from gro import *`                     |
 | `program p() := { … };`                    | `class P(Program): …`                   |
 | `x := 0;` (initializer)                    | field in `state = State(x: int = 0)`    |
-| `condition : { actions }` (guarded cmd)    | `@rule(when=lambda self: ...)`          |
+| `condition : { actions }` (guarded cmd)    | `@when(lambda self: ...)`               |
 | `true : { … }`                             | `@always`                               |
-| `rate(0.1) : { … }`                        | `@rule(when=rate(0.1))`                 |
+| `rate(0.1) : { … }`                        | `@when(rate(0.1))`                      |
 | `program main() := { … };`                 | `on_tick(fn)` or a `Main` class         |
 | `program r(x) := p(x+1) + p(x+2);`         | `r = compose(P.with_args(x+1), …)`      |
 | `program h(x) := p(x) + g() sharing t;`    | `h = compose(P, G, share=["t"])`        |
@@ -147,13 +148,14 @@ state = State(
 ### Rules and guards
 
 ```python
-@rule(when=lambda self: self.state.mode == 0 and self.get_signal(ahl) > 0.01)
+@when(lambda self: self.state.mode == 0 and self.get_signal(ahl) > 0.01)
 def relay(self):
     self.emit_signal(ahl, 100)
     self.state.mode = 1
 ```
 
-The `when=` lambda is **AST-inspected at class definition time**.
+The predicate passed to `@when(...)` is **AST-inspected at class
+definition time**.
 Allowed nodes:
 
 - `Compare`, `BoolOp`, `UnaryOp`, `BinOp` (math/logic operators)
@@ -278,8 +280,8 @@ On by default. Enforced at class-creation time by `Program.__init_subclass__`:
   - simulator-injected attributes (`volume`, `id`, `just_divided`,
     `daughter`, `selected`, plus the reporter aliases `gfp`/`rfp`/
     `cfp`/`yfp`).
-- Every `@rule` must have a `when=` keyword.
-- Every `when=` lambda passes the AST sandbox.
+- Every rule method must be decorated with `@when(...)` or `@always`.
+- Every `@when(...)` predicate passes the AST sandbox.
 - `requires` and `share` lists, if present, reference real field names.
 
 Mutable defaults in `State` (`list = []`, `dict = {}`, etc.) are
@@ -403,9 +405,9 @@ once milestone 6 lands.
    `set_signal`, `get_signal`, `dt`, `ecoli`. Enough to run a trivial
    program with no behavior. A `.py` file with `ecoli(x=0, y=0)` puts a
    cell on the canvas. `__all__` is set; `from gro import *` works.
-3. **Program class with state schema.** `Program`, `State`, `rule`,
-   `always`. AST sandbox for `when=`. Strict mode. wave.py runs and
-   visually matches wave.gro.
+3. **Program class with state schema.** `Program`, `State`, `when`,
+   `always`. AST sandbox for the `@when(...)` predicate. Strict mode.
+   wave.py runs and visually matches wave.gro.
 4. **Cell division semantics.** `Preserved` / `Halved`, per-field
    halving rules, `just_divided` / `daughter` plumbed.
 5. **Composition.** `compose`, `Composed`, `share=[...]`, `requires`,
