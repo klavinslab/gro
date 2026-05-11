@@ -18,7 +18,9 @@
 //
 
 #include <QtGui>
+#include <cstring>
 #include "GroThread.h"
+#include "PythonRuntime.h"
 
 #define RESIZE                                    \
   middle = QSize(size.width()/2,size.height()/2); \
@@ -133,10 +135,40 @@ void GroThread::run()
 
 }
 
+// Returns true if `path` ends with `.py` (case-insensitive). Anything
+// else routes through the existing CCL parser.
+static bool isPythonProgram(const char * path) {
+    if (!path) return false;
+    size_t n = std::strlen(path);
+    if (n < 3) return false;
+    return (path[n-3] == '.' &&
+            (path[n-2] == 'p' || path[n-2] == 'P') &&
+            (path[n-1] == 'y' || path[n-1] == 'Y'));
+}
+
 bool GroThread::parse ( const char * path ) {
 
     //if ( world )
     //    delete world;
+
+    // .py files are routed to the embedded Python runtime instead of
+    // the CCL parser. Milestone 1: this always returns a "not
+    // implemented" error after confirming Python initializes.
+    if (isPythonProgram(path)) {
+        std::string err;
+        bool ok = PythonRuntime::instance().loadProgram(path, err);
+        if (!ok) {
+            error_string = err;
+            CHANGE_STATE(NO_PROGRAM);
+            return false;
+        }
+        // Unreachable in milestone 1, but the path is here for later
+        // milestones to fill in (build a world from the Python module).
+        CHANGE_STATE(READY);
+        RESIZE;
+        RENDER;
+        return true;
+    }
 
     world = new World(this);
     register_gro_functions();

@@ -40,9 +40,24 @@ if(APPLE)
     find_program(BREW_EXECUTABLE brew)
     _gro_use_brew_qt_pkg(qtbase "")
     _gro_use_brew_qt_pkg(qtsvg  Qt6Svg)
+
+    # Homebrew's python3 isn't keg-only, but pointing Python3_ROOT_DIR
+    # at it makes find_package prefer the brew Python over any
+    # /Library/Frameworks/Python.framework that might also be present.
+    execute_process(
+        COMMAND ${BREW_EXECUTABLE} --prefix python3
+        OUTPUT_VARIABLE _brew_python_prefix
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE _brew_python_rc
+    )
+    if(_brew_python_rc EQUAL 0 AND IS_DIRECTORY "${_brew_python_prefix}")
+        set(Python3_ROOT_DIR "${_brew_python_prefix}")
+    endif()
 endif()
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Svg)
+find_package(Python3 3.11 REQUIRED COMPONENTS Development Interpreter)
 qt_standard_project_setup()
 
 # ----------------------------------------------------------------------------
@@ -62,6 +77,12 @@ FetchContent_Declare(chipmunk
     GIT_TAG        Chipmunk-7.0.3
 )
 
+# pybind11: header-only C++/Python binding library used to embed CPython.
+FetchContent_Declare(pybind11
+    GIT_REPOSITORY https://github.com/pybind/pybind11.git
+    GIT_TAG        v2.13.6
+)
+
 # Chipmunk's CMakeLists.txt builds demos and several extras we don't want.
 set(BUILD_DEMOS    OFF CACHE BOOL "" FORCE)
 set(INSTALL_DEMOS  OFF CACHE BOOL "" FORCE)
@@ -69,7 +90,7 @@ set(INSTALL_STATIC OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED   OFF CACHE BOOL "" FORCE)
 set(BUILD_STATIC   ON  CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(ccl chipmunk)
+FetchContent_MakeAvailable(ccl chipmunk pybind11)
 
 # ----------------------------------------------------------------------------
 # gro executable
@@ -91,6 +112,7 @@ qt_add_executable(gro MACOSX_BUNDLE
     src/GroPainter.cpp
     src/Cell.cpp
     src/reaction.cpp
+    src/PythonRuntime.cpp
     icons.qrc
 )
 
@@ -99,6 +121,7 @@ target_link_libraries(gro PRIVATE
     Qt6::Svg
     ccl
     chipmunk_static
+    pybind11::embed
 )
 
 target_compile_definitions(gro PRIVATE GRO_VERSION="${PROJECT_VERSION}")

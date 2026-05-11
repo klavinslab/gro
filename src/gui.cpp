@@ -99,9 +99,9 @@ void Gui::open ( void ) {
 
     fileName = QFileDialog::getOpenFileName (
                          this,
-                         tr("Open a .gro file"),
+                         tr("Open a gro program"),
                          directory.absolutePath(),
-                         tr("Gro files (*.gro)")
+                         tr("gro programs (*.gro *.py)")
                        );
 
     if ( !fileName.isNull() ) {
