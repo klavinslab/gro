@@ -159,20 +159,8 @@ Value * new_signal ( std::list<Value *> * args, Scope * s ) {
   Value * kdi = *i; i++;
   Value * kde = *i;
 
-  int w, h, numx, numy;
-
-  w = world->get_param ( "signal_grid_width" );
-  h = world->get_param ( "signal_grid_height" );
-  numx = w / world->get_param ( "signal_element_size" );
-  numy = h / world->get_param ( "signal_element_size" );
-
-  Signal * sig = new Signal (
-     cpv ( -w/2, -h/2 ), cpv ( w/2, h/2 ), numx, numy,
-     kdi->num_value(), kde->num_value() );
-
-  world->add_signal ( sig );
-
-  return new Value ( world->num_signals() - 1 );
+  return new Value (
+      world->add_new_signal ( kdi->num_value(), kde->num_value() ) );
 
 }
 

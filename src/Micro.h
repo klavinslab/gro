@@ -190,14 +190,15 @@ class World {
   MicroProgram * get_program ( void ) { return prog; }
 
   void init ();
-  // Init steps that don't depend on a MicroProgram: chipmunk space,
-  // default parameters, population list. Used by the Python loader,
-  // which evaluates the user's .py file after this call instead of
-  // calling prog->init.
+  // Program-independent setup: chipmunk space, population list, and
+  // default parameters. Always run as part of init().
   void init_state ();
-  // Set up the chemostat walls. World::init does this automatically;
-  // the Python loader calls it manually after running the user file.
+  // Adds the chemostat boundary walls. No-op unless chemostat_mode
+  // was set by the program.
   void init_chemostat_walls ();
+  // Creates a new Signal with the world's current grid parameters
+  // and registers it. Returns the index/handle of the new signal.
+  int add_new_signal ( float diffusion, float degradation );
   void restart ( void );
   void update ();
 
@@ -215,7 +216,7 @@ class World {
   std::vector< std::vector<float> > * get_signal_matrix ( int i );
   int num_signals ( void ) { return signal_list.size(); }
   inline void set_signal ( int i, float x, float y, float c ) { signal_list[i]->set(x,y,c); }
-  inline float get_signal_at ( int i, float x, float y ) { return signal_list[i]->get(x,y); }
+  inline float signal_value ( int i, float x, float y ) { return signal_list[i]->get(x,y); }
   inline void set_signal_rect ( int i, float x1, float y1, float x2, float y2, float c ) { signal_list[i]->set_rect(x1,y1,x2,y2,c); }
 
   inline cpSpace * get_space ( void ) { return space; }

@@ -92,45 +92,10 @@ void World::init_state () {
     cpSpaceSetDamping       ( space, DAMPING );
     cpSpaceSetCollisionSlop ( space, 0.2 );
 
-    // Default parameters. These match include/gro.gro's defaults so a
-    // .py program starts in the same world state as a .gro one.
-    // Programs can override any of these by calling set_param.
-
-    set_param ( "dt", 0.02 );
-
-    set_param ( "chemostat_width", 200);
-    set_param ( "chemostat_height", 200);
-    set_param ( "signal_area_width", 800);
-    set_param ( "signal_num_divisions", 160);
-    set_param ( "population_max", 1000 );
-    set_param ( "throttle", 0.0 );
-
-    set_param ( "signal_grid_width",  800 );
-    set_param ( "signal_grid_height", 800 );
-    set_param ( "signal_element_size",  5 );
-
-    // Reporters
-    set_param ( "gfp_saturation_min",  0.0 );
-    set_param ( "gfp_saturation_max", 50.0 );
-    set_param ( "rfp_saturation_min",  0.0 );
-    set_param ( "rfp_saturation_max", 50.0 );
-    set_param ( "yfp_saturation_min",  0.0 );
-    set_param ( "yfp_saturation_max", 50.0 );
-    set_param ( "cfp_saturation_min",  0.0 );
-    set_param ( "cfp_saturation_max", 50.0 );
-
-    // E. coli
-    set_param ( "ecoli_growth_rate",          0.0346574 );  // reactions/min
-    set_param ( "ecoli_init_size",            1.57 );       // fL
-    set_param ( "ecoli_division_size_mean",   3.14 );       // fL
-    set_param ( "ecoli_division_size_var",    0.005 );      // fL
-    set_param ( "ecoli_diameter",             1.0 );
-    set_param ( "ecoli_scale",               10.0 );        // pixels/um
-
-    // Yeast
-    set_param ( "yeast_growth_rate",          0.015 );
-    set_param ( "yeast_division_size_mean",   1.0 );
-    set_param ( "yeast_division_size_variance", 0.0001 );
+    // World default parameters are set by the language stdlib, not
+    // here: include/gro.gro for the CCL path, python/gro/__init__.py
+    // for the Python path. Each is its language's "gro" library and
+    // owns the defaults its programs see.
 
 }
 
@@ -139,7 +104,6 @@ void World::init_chemostat_walls () {
     if ( !chemostat_mode )
         return;
 
-    cpShape *shape;
     cpBody *staticBody = cpSpaceGetStaticBody(space);
 
     int w = get_param("chemostat_width")/2,
@@ -149,15 +113,29 @@ void World::init_chemostat_walls () {
         cpShape *s = cpSpaceAddShape(space, cpSegmentShapeNew(staticBody, a, b, 5.0f));
         cpShapeSetElasticity ( s, 1.0f );
         cpShapeSetFriction   ( s, 0.0f );
-        return s;
     };
 
-    shape = add_wall ( cpv(-400,h), cpv(-w,h)  );
-    shape = add_wall ( cpv(-w,h),   cpv(-w,-h) );
-    shape = add_wall ( cpv(-w,-h),  cpv(w,-h)  );
-    shape = add_wall ( cpv(w,-h),   cpv(w,h)   );
-    shape = add_wall ( cpv(w,h),    cpv(400,h) );
-    (void) shape;
+    add_wall ( cpv(-400,h), cpv(-w,h)  );
+    add_wall ( cpv(-w,h),   cpv(-w,-h) );
+    add_wall ( cpv(-w,-h),  cpv(w,-h)  );
+    add_wall ( cpv(w,-h),   cpv(w,h)   );
+    add_wall ( cpv(w,h),    cpv(400,h) );
+
+}
+
+int World::add_new_signal ( float diffusion, float degradation ) {
+
+    int w    = get_param("signal_grid_width");
+    int h    = get_param("signal_grid_height");
+    int numx = w / get_param("signal_element_size");
+    int numy = h / get_param("signal_element_size");
+
+    Signal * sig = new Signal (
+        cpv(-w/2, -h/2), cpv(w/2, h/2), numx, numy,
+        diffusion, degradation );
+
+    add_signal(sig);
+    return num_signals() - 1;
 
 }
 

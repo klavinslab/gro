@@ -7,16 +7,14 @@
 
 #include "Micro.h"
 #include "EColi.h"
-#include "Signal.h"
 #include "Defines.h"
-#include <chipmunk/chipmunk.h>
 
 namespace py = pybind11;
 
-// Helper: pull the current World from PythonRuntime or throw a clear
-// error if none is set. All bound functions go through this so the
-// failure mode of "Python code called outside a load" is a Python
-// RuntimeError, not a segfault.
+// Pulls the active World from PythonRuntime or throws a clear Python
+// RuntimeError if none is set. The throw turns "gro API called with no
+// active simulation" into a readable error in the gro console instead
+// of a segfault when the binding dereferences a null world pointer.
 static World * world() {
     World * w = PythonRuntime::instance().getCurrentWorld();
     if (!w)
@@ -26,9 +24,6 @@ static World * world() {
     return w;
 }
 
-// The user-facing `gro` Python package re-exports primitives from
-// `_core` (this module) plus adds high-level decorators/classes in
-// pure Python. Milestone 2 surface: parameters, signals, ecoli, dt.
 PYBIND11_EMBEDDED_MODULE(_core, m) {
     m.doc() = "gro core bindings (C++ side of the gro Python module).";
 
@@ -43,17 +38,9 @@ PYBIND11_EMBEDDED_MODULE(_core, m) {
 
     // ---- signals ----
     m.def("signal", [](double diffusion, double degradation) -> int {
-        World * w = world();
-        int gw   = w->get_param("signal_grid_width");
-        int gh   = w->get_param("signal_grid_height");
-        int numx = gw / w->get_param("signal_element_size");
-        int numy = gh / w->get_param("signal_element_size");
-        Signal * s = new Signal(
-            cpv(-gw/2, -gh/2), cpv(gw/2, gh/2), numx, numy,
+        return world()->add_new_signal(
             static_cast<float>(diffusion),
             static_cast<float>(degradation));
-        w->add_signal(s);
-        return w->num_signals() - 1;
     }, py::arg("diffusion"), py::arg("degradation"));
 
     m.def("set_signal", [](int handle, double x, double y, double value) {
@@ -63,29 +50,28 @@ PYBIND11_EMBEDDED_MODULE(_core, m) {
                             static_cast<float>(value));
     }, py::arg("handle"), py::arg("x"), py::arg("y"), py::arg("value"));
 
-    // get_signal at (x,y). The cell-local form (no coords; uses
-    // self's position) is a method on Cell and lives in milestone 3.
+    // get_signal at (x,y). The cell-local form (no coords; uses self's
+    // position) is a method on Cell, added when the Cell binding lands.
     m.def("get_signal", [](int handle, double x, double y) -> double {
-        // Borrow the Signal directly; World only exposes a cell-based
-        // accessor. Acceptable for M2 since signals are public.
         World * w = world();
         if (handle < 0 || handle >= w->num_signals())
             throw std::runtime_error("get_signal: invalid handle");
-        return w->get_signal_at(handle, static_cast<float>(x), static_cast<float>(y));
+        return w->signal_value(handle,
+                               static_cast<float>(x),
+                               static_cast<float>(y));
     }, py::arg("handle"), py::arg("x"), py::arg("y"));
 
     // ---- cells ----
     m.def("ecoli",
           [](double x, double y, double theta, double volume) {
+        // No program assignment yet. Cell grows under physics;
+        // EColi::update no-ops when program is NULL.
         World * w = world();
         EColi * c = new EColi(w,
                               static_cast<float>(x),
                               static_cast<float>(y),
                               static_cast<float>(theta),
                               static_cast<float>(volume));
-        // Milestone 2: no program assignment yet. Cell sits and grows
-        // by physics; EColi::update gracefully no-ops when program is
-        // NULL.
         w->add_cell(c);
     },
           py::arg("x")      = 0.0,
@@ -94,9 +80,8 @@ PYBIND11_EMBEDDED_MODULE(_core, m) {
           py::arg("volume") = DEFAULT_ECOLI_INIT_SIZE);
 
     // ---- time / dt ----
-    // Both exposed as zero-arg functions. The Python wrapper presents
-    // `dt` as just `dt()` (function call) — a property-style accessor
-    // would need a module-level descriptor, which is overkill.
+    // Exposed as zero-arg functions. dt() is read each call so it
+    // tracks set_param("dt", …) at any point during the run.
     m.def("dt", []() -> double {
         return world()->get_sim_dt();
     });
@@ -111,14 +96,22 @@ PythonRuntime & PythonRuntime::instance() {
 }
 
 bool PythonRuntime::ensureInitialized(std::string & err) {
-    if (initialized_)
+    if (Py_IsInitialized())
         return true;
 
     try {
         py::initialize_interpreter();
-        // Smoke test: importing _core must succeed.
+        // Smoke test that the embedded module is registered correctly;
+        // a missing _core means pybind11 wiring is wrong, and the
+        // user gets that as a clean error instead of an obscure
+        // ImportError on first `from gro import *`.
         py::module_::import("_core");
-        initialized_ = true;
+        // The user's .py file does `from gro import *`. Make the
+        // bundled wrapper at Contents/Resources/python/gro/__init__.py
+        // findable. main.cpp chdir'd to Contents/Resources at startup,
+        // so the relative "python" path resolves there. Inserted once
+        // per process; subsequent loadProgram calls reuse it.
+        py::module_::import("sys").attr("path").attr("insert")(0, "python");
         return true;
     } catch (const std::exception & e) {
         std::ostringstream oss;
@@ -133,13 +126,12 @@ bool PythonRuntime::loadProgram(const char * path, std::string & err) {
         return false;
 
     try {
-        // Ensure the bundle's Python wrapper directory is on sys.path
-        // so `from gro import *` resolves. applicationDirPath/../Resources/python.
-        // We use Qt's path here via a small helper exposed by Gui; for
-        // milestone 2 we hardcode "python" relative to cwd, which the
-        // main.cpp chdir already sets to Resources/.
-        py::module_::import("sys").attr("path").attr("insert")(0, "python");
-
+        // Apply the gro stdlib's default world parameters to this
+        // fresh World. Python's module-import cache means the
+        // top-level code of gro/__init__.py only runs once per
+        // process, so we can't rely on module load to do this —
+        // we call the setup function explicitly each load.
+        py::module_::import("gro").attr("_setup_world")();
         py::eval_file(path);
     } catch (py::error_already_set & e) {
         std::ostringstream oss;
@@ -158,10 +150,9 @@ bool PythonRuntime::loadProgram(const char * path, std::string & err) {
 }
 
 void PythonRuntime::shutdown() {
-    if (!initialized_)
+    if (!Py_IsInitialized())
         return;
     py::finalize_interpreter();
-    initialized_ = false;
 }
 
 PythonRuntime::~PythonRuntime() {
