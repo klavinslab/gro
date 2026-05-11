@@ -123,7 +123,7 @@ Semantic correspondence with CCL:
 | `condition : { actions }` (guarded cmd)    | `@when(lambda self: ...)`               |
 | `true : { … }`                             | `@always`                               |
 | `rate(0.1) : { … }`                        | `@rate(0.1)`                            |
-| `program main() := { … };`                 | `on_tick(fn)` or a `Main` class         |
+| `program main() := { … };`                 | `@on_tick def main(): …`                |
 | `program r(x) := p(x+1) + p(x+2);`         | `r = compose(P.with_args(x+1), …)`      |
 | `program h(x) := p(x) + g() sharing t;`    | `h = compose(P, G, share=["t"])`        |
 | `needs t;`                                 | `requires = ["t"]` class attr           |
