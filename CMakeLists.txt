@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(gro LANGUAGES CXX)
+project(gro VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -88,16 +88,21 @@ set_source_files_properties(groicon.icns PROPERTIES
 )
 
 # ----------------------------------------------------------------------------
-# examples/ and include/ are needed at runtime, alongside the .app bundle.
-# main.cpp chdirs to applicationDirPath/../../.. so they resolve there.
+# Bundle examples/ and include/ into gro.app/Contents/Resources/ so the
+# .app is self-contained and ships in the DMG. main.cpp chdirs to
+# applicationDirPath/../Resources at startup, so the CCL lexer finds
+# `include/gro.gro` relative to it.
 # ----------------------------------------------------------------------------
 add_custom_command(TARGET gro POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E create_symlink
+    COMMAND ${CMAKE_COMMAND} -E rm -rf
+        "$<TARGET_BUNDLE_CONTENT_DIR:gro>/Resources/examples"
+        "$<TARGET_BUNDLE_CONTENT_DIR:gro>/Resources/include"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_CURRENT_SOURCE_DIR}/examples
-        ${CMAKE_CURRENT_BINARY_DIR}/examples
-    COMMAND ${CMAKE_COMMAND} -E create_symlink
+        "$<TARGET_BUNDLE_CONTENT_DIR:gro>/Resources/examples"
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_BINARY_DIR}/include
+        "$<TARGET_BUNDLE_CONTENT_DIR:gro>/Resources/include"
     VERBATIM
 )
 
@@ -116,4 +121,28 @@ if(APPLE)
             COMMENT "Deploying Qt into gro.app"
             VERBATIM)
     endif()
+endif()
+
+# ----------------------------------------------------------------------------
+# Distribution: `cmake --build build --target package` produces a DMG.
+# ----------------------------------------------------------------------------
+if(APPLE)
+    # macdeployqt already rewrote rpaths in gro.app at build time. Tell
+    # CMake that the build-time rpath IS the install-time rpath so it
+    # doesn't try to "fix" what's already fixed at install/cpack time.
+    set_target_properties(gro PROPERTIES
+        INSTALL_RPATH           "@executable_path/../Frameworks"
+        BUILD_WITH_INSTALL_RPATH TRUE
+        INSTALL_RPATH_USE_LINK_PATH FALSE
+    )
+
+    install(TARGETS gro BUNDLE DESTINATION .)
+
+    set(CPACK_GENERATOR "DragNDrop")
+    set(CPACK_PACKAGE_NAME "gro")
+    set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+    set(CPACK_PACKAGE_FILE_NAME "gro-${PROJECT_VERSION}-mac")
+    set(CPACK_DMG_VOLUME_NAME "gro ${PROJECT_VERSION}")
+    set(CPACK_PACKAGE_VENDOR "Klavins Lab, University of Washington")
+    include(CPack)
 endif()
