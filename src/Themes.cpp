@@ -25,6 +25,30 @@ void World::set_theme ( Value * v ) {
 
 }
 
+void Theme::set_colors ( const std::string & bg_,
+                         const std::string & edge_,
+                         const std::string & selected_,
+                         const std::string & chemostat_,
+                         const std::string & message_,
+                         const std::string & mouse_,
+                         const std::vector< std::vector<float> > & signal_palette ) {
+
+    background     = bg_;
+    ecoli_edge     = edge_;
+    ecoli_selected = selected_;
+    chemostat_edge = chemostat_;
+    message        = message_;
+    mouse          = mouse_;
+
+    QColor c ( background.c_str() );
+    br = c.red()   / 255.0;
+    bg = c.green() / 255.0;
+    bb = c.blue()  / 255.0;
+
+    signal_colors = signal_palette;
+
+}
+
 Theme::Theme ( void ) {
 
     // default values

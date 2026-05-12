@@ -126,12 +126,21 @@ class MicroProgram {
  public:
 
   MicroProgram ( void ) {}
+  virtual ~MicroProgram () {}
   virtual void init ( World * ) {}
   virtual void update ( World *, Cell * ) {}
   virtual Value * eval ( World * , Cell * , Expr * ) { return NULL; }
   virtual void world_update ( World * ) {}
   virtual void destroy ( World * ) {}
   virtual std::string name ( void ) const { return "Untitled Program"; }
+
+  // Called when a cell divides. `mother_frac` is the fraction of the
+  // mother cell's volume that stays with the mother (≈ 0.5 plus
+  // noise); the daughter gets `1 - mother_frac`. Returns the program
+  // to install on the daughter, or NULL if the program doesn't
+  // propagate (the CCL default; CCL's gro_program uses a separate
+  // split_gro_program helper).
+  virtual MicroProgram * split ( float /*mother_frac*/ ) { return NULL; }
   
  private:
 

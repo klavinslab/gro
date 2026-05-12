@@ -31,6 +31,15 @@ public:
     ~Theme ( void ) {}
 
     void set ( Value * rec );
+    // Python-friendly setter; mirrors Theme::set but takes plain
+    // C++ values so callers don't need a CCL Value record.
+    void set_colors ( const std::string & background,
+                      const std::string & ecoli_edge,
+                      const std::string & ecoli_selected,
+                      const std::string & chemostat_edge,
+                      const std::string & message,
+                      const std::string & mouse,
+                      const std::vector< std::vector<float> > & signal_palette );
 
     void apply_background ( GroPainter * painter );
     void apply_ecoli_edge_color ( GroPainter * painter, bool is_selected );

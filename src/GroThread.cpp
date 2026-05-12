@@ -156,18 +156,18 @@ bool GroThread::parse ( const char * path ) {
     // .py file, during which bound functions (ecoli, signal, …) add
     // cells/signals to the world.
     if (isPythonProgram(path)) {
+        delete world;               // drop any previous run's world
         world = new World(this);
         world->init_state();        // chipmunk space + default params
 
         PythonRuntime & rt = PythonRuntime::instance();
-        rt.setCurrentWorld(world);
+        rt.setCurrentWorld(world);   // stays set for the world's lifetime
 
         std::string err;
         bool ok = rt.loadProgram(path, err);
 
-        rt.setCurrentWorld(nullptr);
-
         if (!ok) {
+            rt.setCurrentWorld(nullptr);
             error_string = err;
             delete world;
             world = NULL;

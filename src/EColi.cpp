@@ -162,6 +162,15 @@ EColi * EColi::divide ( void ) {
       daughter->set_gro_program ( split_gro_program ( gro_program, frac ) );
     }
 
+    // Propagate Python program (if any) to the daughter cell. CCL's
+    // MicroProgram base no-ops; PythonMicroProgram returns a new
+    // instance of the same user Program class so the daughter has
+    // the same rules.
+    if ( program != NULL ) {
+      MicroProgram * daughter_prog = program->split ( frac );
+      if ( daughter_prog ) daughter->set_prog ( daughter_prog );
+    }
+
     daughter->init ( q, rep, 1-frac );
 
     int i;

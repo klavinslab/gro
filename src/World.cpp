@@ -64,7 +64,7 @@ World::~World ( void ) {
 
     delete population;
 
-    prog->destroy(this);
+    if (prog) prog->destroy(this);  // null for Python-loaded worlds
 
 }
 

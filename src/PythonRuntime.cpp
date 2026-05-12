@@ -4,9 +4,14 @@
 #include <pybind11/eval.h>
 #include <sstream>
 #include <stdexcept>
+#include <iostream>
+
+#include <pybind11/stl.h>
 
 #include "Micro.h"
+#include "Cell.h"
 #include "EColi.h"
+#include "Theme.h"
 #include "Defines.h"
 
 namespace py = pybind11;
@@ -24,16 +29,118 @@ static World * world() {
     return w;
 }
 
+// Pulls the cell currently being ticked. Used by emit_signal /
+// get_signal / volume / id etc. — cell-local bindings that need to
+// know which cell `self` refers to without the user passing it.
+static Cell * current_cell() {
+    Cell * c = PythonRuntime::instance().getCurrentCell();
+    if (!c)
+        throw std::runtime_error(
+            "Cell-local gro API called outside a cell rule. "
+            "Functions like emit_signal can only be called from "
+            "inside a Program rule (a @when/@always/@rate method).");
+    return c;
+}
+
+// RAII guard: installs `c` as the active cell on entry, restores
+// whatever was there on exit (so nested invocations from a rule —
+// e.g. spawning a new cell from inside another's setup — see the
+// right context).
+struct CellScope {
+    Cell * prev;
+    explicit CellScope(Cell * c) : prev(PythonRuntime::instance().getCurrentCell()) {
+        PythonRuntime::instance().setCurrentCell(c);
+    }
+    ~CellScope() {
+        PythonRuntime::instance().setCurrentCell(prev);
+    }
+};
+
+// Adapter that lets a CCL Cell drive a Python Program. EColi::update
+// calls program->update(world, this); we forward that to the Python
+// instance's _tick() with the cell installed as the current_cell.
+class PythonMicroProgram : public MicroProgram {
+public:
+    explicit PythonMicroProgram(py::object instance)
+        : instance_(std::move(instance)) {}
+
+    // py::object's destructor decrements a Python refcount; must hold
+    // the GIL when that happens. Cell deletion can happen on either
+    // thread. If Py_Finalize has already run (e.g. during static
+    // teardown), there's no interpreter to acquire — leak the
+    // refcount silently rather than crash.
+    ~PythonMicroProgram() override {
+        if (!Py_IsInitialized()) {
+            instance_.release();
+            return;
+        }
+        py::gil_scoped_acquire gil;
+        instance_ = py::object();
+    }
+
+    void update(World * w, Cell * c) override {
+        py::gil_scoped_acquire gil;
+        CellScope scope(c);
+        try {
+            instance_.attr("_tick")();
+        } catch (py::error_already_set & e) {
+            // Logged to stderr; doesn't stop the simulation. The
+            // overlay-on-rule-error path is a future improvement.
+            std::cerr << "Python rule error in cell " << c->get_id() << ":\n"
+                      << e.what() << std::endl;
+        }
+    }
+
+    MicroProgram * split(float mother_frac) override {
+        // Delegate state-splitting to Program._split in Python. On
+        // any Python error we return nullptr; the caller in
+        // EColi::divide skips set_prog for the daughter, leaving
+        // her programless rather than crashing. Better than nothing
+        // until the error-overlay path is wired up.
+        py::gil_scoped_acquire gil;
+        try {
+            py::object new_instance = instance_.attr("_split")(mother_frac);
+            return new PythonMicroProgram(new_instance);
+        } catch (py::error_already_set & e) {
+            std::cerr << "Python program split error: " << e.what() << std::endl;
+            return nullptr;
+        }
+    }
+
+private:
+    py::object instance_;
+};
+
 PYBIND11_EMBEDDED_MODULE(_core, m) {
     m.doc() = "gro core bindings (C++ side of the gro Python module).";
 
     // ---- parameters ----
+    // set_param mirrors CCL's set_param dispatch: if called inside a
+    // cell context (during setup() or a rule body), the param is
+    // written to that cell's local map; otherwise it goes to the
+    // World. This is how `Leader.setup()` can lower its own growth
+    // rate without affecting other cells.
     m.def("set_param", [](const std::string & name, double value) {
-        world()->set_param(name, static_cast<float>(value));
+        Cell * cc = PythonRuntime::instance().getCurrentCell();
+        if (cc) {
+            cc->set_param(name, static_cast<float>(value));
+            cc->compute_parameter_derivatives();
+        } else {
+            World * w = world();
+            // CCL refuses to change signal grid sizes after any
+            // signal has been declared; mirror that guard.
+            if (w->num_signals() == 0 ||
+                (name != "signal_grid_width" &&
+                 name != "signal_grid_height" &&
+                 name != "signal_element_size")) {
+                w->set_param(name, static_cast<float>(value));
+            }
+        }
     }, py::arg("name"), py::arg("value"));
 
     m.def("get_param", [](const std::string & name) -> double {
-        return world()->get_param(name);
+        Cell * cc = PythonRuntime::instance().getCurrentCell();
+        return cc ? cc->get_param(name) : world()->get_param(name);
     }, py::arg("name"));
 
     // ---- signals ----
@@ -50,44 +157,103 @@ PYBIND11_EMBEDDED_MODULE(_core, m) {
                             static_cast<float>(value));
     }, py::arg("handle"), py::arg("x"), py::arg("y"), py::arg("value"));
 
-    // get_signal at (x,y). The cell-local form (no coords; uses self's
-    // position) is a method on Cell, added when the Cell binding lands.
-    m.def("get_signal", [](int handle, double x, double y) -> double {
+    m.def("get_signal_at", [](int handle, double x, double y) -> double {
         World * w = world();
         if (handle < 0 || handle >= w->num_signals())
-            throw std::runtime_error("get_signal: invalid handle");
+            throw std::runtime_error("get_signal_at: invalid handle");
         return w->signal_value(handle,
                                static_cast<float>(x),
                                static_cast<float>(y));
     }, py::arg("handle"), py::arg("x"), py::arg("y"));
 
-    // ---- cells ----
+    // ---- cell-local signal API (uses current_cell context) ----
+    m.def("emit_signal_cell", [](int handle, double amount) {
+        world()->emit_signal(current_cell(), handle,
+                             static_cast<float>(amount));
+    }, py::arg("handle"), py::arg("amount"));
+
+    m.def("absorb_signal_cell", [](int handle, double amount) {
+        world()->absorb_signal(current_cell(), handle,
+                               static_cast<float>(amount));
+    }, py::arg("handle"), py::arg("amount"));
+
+    m.def("get_signal_cell", [](int handle) -> double {
+        return world()->get_signal_value(current_cell(), handle);
+    }, py::arg("handle"));
+
+    // ---- current cell properties ----
+    m.def("current_volume",   []() -> double { return current_cell()->get_volume(); });
+    m.def("current_id",       []() -> int    { return current_cell()->get_id(); });
+    m.def("current_x",        []() -> double { return current_cell()->get_x(); });
+    m.def("current_y",        []() -> double { return current_cell()->get_y(); });
+    m.def("current_theta",    []() -> double { return current_cell()->get_theta(); });
+
+    // ---- spawning ----
     m.def("ecoli",
-          [](double x, double y, double theta, double volume) {
-        // No program assignment yet. Cell grows under physics;
-        // EColi::update no-ops when program is NULL.
+          [](double x, double y, double theta, py::object volume,
+             py::object program) {
         World * w = world();
+        double v = volume.is_none()
+                       ? DEFAULT_ECOLI_INIT_SIZE
+                       : volume.cast<double>();
         EColi * c = new EColi(w,
                               static_cast<float>(x),
                               static_cast<float>(y),
                               static_cast<float>(theta),
-                              static_cast<float>(volume));
+                              static_cast<float>(v));
+        if (!program.is_none()) {
+            // The Python side passes a Program *instance* (created by
+            // the gro.ecoli wrapper). Wrap it in the C++ adapter so
+            // EColi::update can dispatch into it each tick.
+            c->set_prog(new PythonMicroProgram(program));
+        }
         w->add_cell(c);
+        // Run setup() with current_cell set, mirroring CCL's
+        // new_ecoli which calls prog->init under a current_cell
+        // context so any set_param calls in init are cell-local.
+        if (!program.is_none()) {
+            CellScope scope(c);
+            program.attr("setup")();
+        }
     },
-          py::arg("x")      = 0.0,
-          py::arg("y")      = 0.0,
-          py::arg("theta")  = 0.0,
-          py::arg("volume") = DEFAULT_ECOLI_INIT_SIZE);
+          py::arg("x")       = 0.0,
+          py::arg("y")       = 0.0,
+          py::arg("theta")   = 0.0,
+          py::arg("volume")  = py::none(),
+          py::arg("program") = py::none());
 
     // ---- time / dt ----
-    // Exposed as zero-arg functions. dt() is read each call so it
-    // tracks set_param("dt", …) at any point during the run.
-    m.def("dt", []() -> double {
-        return world()->get_sim_dt();
-    });
-    m.def("time", []() -> double {
-        return world()->get_time();
-    });
+    m.def("dt",   []() -> double { return world()->get_sim_dt(); });
+    m.def("time", []() -> double { return world()->get_time();  });
+
+    // ---- theme ----
+    m.def("set_theme", [](
+        const std::string & background,
+        const std::string & ecoli_edge,
+        const std::string & ecoli_selected,
+        const std::string & chemostat_edge,
+        const std::string & message,
+        const std::string & mouse,
+        const std::vector< std::vector<float> > & signal_palette
+    ) {
+        world()->get_theme()->set_colors(
+            background, ecoli_edge, ecoli_selected,
+            chemostat_edge, message, mouse, signal_palette);
+    },
+        py::arg("background"),
+        py::arg("ecoli_edge"),
+        py::arg("ecoli_selected"),
+        py::arg("chemostat_edge"),
+        py::arg("message"),
+        py::arg("mouse"),
+        py::arg("signals"));
+
+    // ---- RNG (matches CCL's `rand`) ----
+    m.def("rand", [](int n) -> int {
+        if (n <= 0)
+            throw std::runtime_error("rand(n): n must be positive");
+        return std::rand() % n;
+    }, py::arg("n"));
 }
 
 PythonRuntime & PythonRuntime::instance() {
@@ -101,17 +267,18 @@ bool PythonRuntime::ensureInitialized(std::string & err) {
 
     try {
         py::initialize_interpreter();
-        // Smoke test that the embedded module is registered correctly;
-        // a missing _core means pybind11 wiring is wrong, and the
-        // user gets that as a clean error instead of an obscure
-        // ImportError on first `from gro import *`.
         py::module_::import("_core");
-        // The user's .py file does `from gro import *`. Make the
-        // bundled wrapper at Contents/Resources/python/gro/__init__.py
-        // findable. main.cpp chdir'd to Contents/Resources at startup,
-        // so the relative "python" path resolves there. Inserted once
-        // per process; subsequent loadProgram calls reuse it.
+        // main.cpp chdir'd to Contents/Resources at startup, so
+        // relative "python" resolves to the bundled wrapper at
+        // Contents/Resources/python.
         py::module_::import("sys").attr("path").attr("insert")(0, "python");
+
+        // Release the GIL so the simulation thread (a QThread) can
+        // acquire it each tick via py::gil_scoped_acquire. Without
+        // this, the main thread would hold the GIL indefinitely and
+        // GroThread would deadlock the first time a Python rule
+        // tries to run.
+        main_thread_state_ = PyEval_SaveThread();
         return true;
     } catch (const std::exception & e) {
         std::ostringstream oss;
@@ -125,12 +292,10 @@ bool PythonRuntime::loadProgram(const char * path, std::string & err) {
     if (!ensureInitialized(err))
         return false;
 
+    // We released the GIL in ensureInitialized; reacquire it for
+    // this main-thread work.
+    py::gil_scoped_acquire gil;
     try {
-        // Apply the gro stdlib's default world parameters to this
-        // fresh World. Python's module-import cache means the
-        // top-level code of gro/__init__.py only runs once per
-        // process, so we can't rely on module load to do this —
-        // we call the setup function explicitly each load.
         py::module_::import("gro").attr("_setup_world")();
         py::eval_file(path);
     } catch (py::error_already_set & e) {
@@ -152,6 +317,10 @@ bool PythonRuntime::loadProgram(const char * path, std::string & err) {
 void PythonRuntime::shutdown() {
     if (!Py_IsInitialized())
         return;
+    if (main_thread_state_) {
+        PyEval_RestoreThread(static_cast<PyThreadState *>(main_thread_state_));
+        main_thread_state_ = nullptr;
+    }
     py::finalize_interpreter();
 }
 
