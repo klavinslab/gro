@@ -18,6 +18,14 @@ from types import SimpleNamespace
 
 import _core
 
+# Reporter indices, sourced from the C++ side so we can't drift away
+# from src/Defines.h's GFP/RFP/YFP/CFP macros if those are ever
+# renumbered.
+_REP_GFP = _core.REP_GFP
+_REP_RFP = _core.REP_RFP
+_REP_YFP = _core.REP_YFP
+_REP_CFP = _core.REP_CFP
+
 
 class GroLoadError(Exception):
     """Raised when a gro Python program is structurally invalid."""
@@ -308,6 +316,13 @@ class Program(metaclass=_ProgramMeta):
     # current_cell pointer set by PythonMicroProgram::update.
     # ------------------------------------------------------------------
 
+    def die(self):
+        """Mark this cell for removal at the end of the current tick.
+        The cell finishes the tick (later rules in the same tick still
+        run); World sweeps it out before the next tick. Mirrors CCL's
+        `die()`."""
+        _core.die_cell()
+
     def emit_signal(self, handle, amount):
         _core.emit_signal_cell(handle, amount)
 
@@ -336,3 +351,38 @@ class Program(metaclass=_ProgramMeta):
     @property
     def theta(self):
         return _core.current_theta()
+
+    @property
+    def just_divided(self):
+        """True on exactly one tick after this cell divides (on both
+        mother and daughter). Cleared by the simulator at the end of
+        that tick. Mirrors CCL's `just_divided` keyword."""
+        return _core.current_just_divided()
+
+    @property
+    def daughter(self):
+        """True for one tick on the daughter side of a division (the
+        new cell). False on the mother. Used together with
+        `just_divided` to break symmetry between the two halves at
+        division time. Mirrors CCL's `daughter` keyword."""
+        return _core.current_is_daughter()
+
+    @property
+    def gfp(self): return _core.current_get_rep(_REP_GFP)
+    @gfp.setter
+    def gfp(self, value): _core.current_set_rep(_REP_GFP, int(value))
+
+    @property
+    def rfp(self): return _core.current_get_rep(_REP_RFP)
+    @rfp.setter
+    def rfp(self, value): _core.current_set_rep(_REP_RFP, int(value))
+
+    @property
+    def yfp(self): return _core.current_get_rep(_REP_YFP)
+    @yfp.setter
+    def yfp(self, value): _core.current_set_rep(_REP_YFP, int(value))
+
+    @property
+    def cfp(self): return _core.current_get_rep(_REP_CFP)
+    @cfp.setter
+    def cfp(self, value): _core.current_set_rep(_REP_CFP, int(value))

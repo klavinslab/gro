@@ -89,6 +89,15 @@ public:
             std::cerr << "Python rule error in cell " << c->get_id() << ":\n"
                       << e.what() << std::endl;
         }
+        // Clear the division built-ins after the tick. EColi::divide
+        // set them; rules read them via self.just_divided /
+        // self.daughter during _tick. Clearing here (outside the
+        // try/catch so a raising rule still resets the flag) gives
+        // the same one-tick lifetime CCL has in Gro.cpp.
+        if (c->just_divided()) {
+            c->set_division_indicator(false);
+            c->set_daughter_indicator(false);
+        }
     }
 
     MicroProgram * split(float mother_frac) override {
@@ -182,11 +191,39 @@ PYBIND11_EMBEDDED_MODULE(_core, m) {
     }, py::arg("handle"));
 
     // ---- current cell properties ----
-    m.def("current_volume",   []() -> double { return current_cell()->get_volume(); });
-    m.def("current_id",       []() -> int    { return current_cell()->get_id(); });
-    m.def("current_x",        []() -> double { return current_cell()->get_x(); });
-    m.def("current_y",        []() -> double { return current_cell()->get_y(); });
-    m.def("current_theta",    []() -> double { return current_cell()->get_theta(); });
+    m.def("current_volume",        []() -> double { return current_cell()->get_volume(); });
+    m.def("current_id",            []() -> int    { return current_cell()->get_id(); });
+    m.def("current_x",             []() -> double { return current_cell()->get_x(); });
+    m.def("current_y",             []() -> double { return current_cell()->get_y(); });
+    m.def("current_theta",         []() -> double { return current_cell()->get_theta(); });
+    m.def("current_just_divided",  []() -> bool   { return current_cell()->just_divided(); });
+    m.def("current_is_daughter",   []() -> bool   { return current_cell()->is_daughter(); });
+
+    // ---- reporters (gfp/rfp/yfp/cfp counters) ----
+    // Single index-parameterized pair; Python wraps it in four named
+    // properties on Program. Indices below are re-exported so the
+    // Python side never has to hard-code Defines.h's GFP/RFP/YFP/CFP
+    // and silently mis-index if the C++ macros are ever renumbered.
+    m.attr("REP_GFP") = py::int_(GFP);
+    m.attr("REP_RFP") = py::int_(RFP);
+    m.attr("REP_YFP") = py::int_(YFP);
+    m.attr("REP_CFP") = py::int_(CFP);
+    m.def("current_get_rep", [](int idx) -> int {
+        if (idx < 0 || idx >= MAX_REP_NUM)
+            throw std::runtime_error("current_get_rep: invalid index");
+        return current_cell()->get_rep(idx);
+    }, py::arg("idx"));
+    m.def("current_set_rep", [](int idx, int value) {
+        if (idx < 0 || idx >= MAX_REP_NUM)
+            throw std::runtime_error("current_set_rep: invalid index");
+        current_cell()->set_rep(idx, value);
+    }, py::arg("idx"), py::arg("value"));
+
+    // ---- die ----
+    // Marks the current cell for removal at the end of this tick.
+    // World::update sweeps marked cells out of the population after
+    // the per-cell loop finishes. Same mechanism CCL's die() uses.
+    m.def("die_cell", []() { current_cell()->mark_for_death(); });
 
     // ---- spawning ----
     m.def("ecoli",
