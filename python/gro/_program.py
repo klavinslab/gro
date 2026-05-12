@@ -258,6 +258,16 @@ class _ProgramMeta(type):
                 continue
             kind, predicate = rule_info
             rules.append((method_name, kind, predicate, attr))
+        # If the subclass declared no rules of its own, inherit the
+        # parent's. Lets `class Tagged(Pulser): pass` and the result
+        # of `Pulser.with_args(...)` automatically pick up their
+        # parent's rules without a manual re-link.
+        if not rules and bases:
+            for base in bases:
+                base_rules = getattr(base, "_gro_rules", None)
+                if base_rules:
+                    rules = list(base_rules)
+                    break
         cls._gro_rules = rules
         # Capture the State factory's preservation set so _split can
         # consult it without re-introspecting.
@@ -286,6 +296,40 @@ class Program(metaclass=_ProgramMeta):
     def setup(self):
         """Override to run once per cell at spawn time."""
         pass
+
+    @classmethod
+    def with_args(cls, **overrides):
+        """Return a thin subclass with the given fields' defaults
+        overridden in the new class's `state`. Equivalent to CCL's
+        `Pulser(period=3)` where the program takes parameters.
+
+        Wrap an override in `Preserved(...)` to mark it preserved
+        across division; otherwise the original Preserved status is
+        retained.
+        """
+        if not isinstance(cls.state, _StateFactory):
+            raise GroLoadError(
+                f"{cls.__name__}.with_args(): {cls.__name__} has no "
+                f"State(...) to override")
+        new_defaults = dict(cls.state._defaults)
+        new_preserved = set(cls.state._preserved)
+        for name, value in overrides.items():
+            if name not in new_defaults:
+                raise GroLoadError(
+                    f"{cls.__name__}.with_args(): unknown field "
+                    f"'{name}' (declared fields: "
+                    f"{sorted(new_defaults)})")
+            if isinstance(value, _Preserved):
+                new_defaults[name] = value.value
+                new_preserved.add(name)
+            else:
+                new_defaults[name] = value
+                # Caller's literal default; don't change Preserved
+                # status from what the original class declared.
+        new_factory = _StateFactory._from_validated(new_defaults, new_preserved)
+        # _ProgramMeta sees no decorated methods on the subclass and
+        # inherits the parent's _gro_rules automatically.
+        return type(f"{cls.__name__}.with_args", (cls,), {"state": new_factory})
 
     def _tick(self):
         """Called by the simulator each tick. Evaluates every rule
@@ -582,3 +626,96 @@ def compose(*parts, share=None):
     Composite._split = _split
 
     return Composite
+
+
+# ----------------------------------------------------------------------------
+# Composed: class-body sugar for compose(...)
+# ----------------------------------------------------------------------------
+
+class _ComposedMeta(_ProgramMeta):
+    """Metaclass for `class X(Composed): parts = [...]; share = [...]`.
+
+    Runs after `_ProgramMeta.__new__` has built `cls` with its
+    `_gro_rules` list, then if the class has a `parts` list,
+    delegates to `compose(...)` and copies its result onto `cls` so
+    the user gets the same instance behavior as a `compose(...)`
+    return.
+    """
+
+    def __new__(mcs, name, bases, ns):
+        cls = super().__new__(mcs, name, bases, ns)
+        # `Composed` itself is the marker base; nothing to merge for it.
+        if name == "Composed":
+            return cls
+        parts = ns.get("parts", None)
+        if parts is None:
+            # Subclass of a Composed-defined class that doesn't re-declare
+            # parts (e.g. a tagged subclass). Leave alone.
+            return cls
+        share = list(ns.get("share", []))
+        merged = compose(*parts, share=share)
+        for attr in (
+            "state", "_gro_preserved",
+            "_gro_composed_rules", "_gro_part_aliases", "_gro_parts",
+            "__init__", "setup", "_tick", "_split",
+        ):
+            setattr(cls, attr, getattr(merged, attr))
+        return cls
+
+
+class Composed(Program, metaclass=_ComposedMeta):
+    """Class-body sugar for `compose(...)`.
+
+    Usage:
+
+        class Wave(Composed):
+            parts = [Leader, Follower]
+            share = ["t"]
+
+    Equivalent to `Wave = compose(Leader, Follower, share=["t"])`.
+    """
+    pass
+
+
+# ----------------------------------------------------------------------------
+# WorldProgram: a Program that runs once per simulation tick at the world
+# level, not per cell. The Python equivalent of CCL's `program main()`.
+# ----------------------------------------------------------------------------
+
+class WorldProgram(Program):
+    """Base class for a `main()`-style world-level program.
+
+    Same decorator surface as `Program` (`@when`, `@always`, `@rate`,
+    `State(...)`), but rules run once per simulation tick at the world
+    level — not per cell. Cell built-ins (`self.volume`, `self.gfp`,
+    `self.emit_signal`, etc.) are nonsensical here and will raise if
+    invoked; use `set_signal(...)`, `get_signal_at(...)`, `set_param`,
+    and the module-level `reset()` / `ecoli(...)` from world rules.
+    """
+    pass
+
+
+def set_main(cls_or_instance):
+    """Install a Program as the world's per-tick main program.
+    Convention is to subclass `WorldProgram` for clarity, but any
+    `Program` subclass works. Accepts either the class (built once)
+    or a pre-constructed instance, and returns the live instance so
+    the caller can keep a handle for introspection.
+
+    Equivalent to CCL's `program main() := { ... }` declaration.
+    """
+    if isinstance(cls_or_instance, type) and issubclass(cls_or_instance, Program):
+        instance = cls_or_instance()
+    else:
+        instance = cls_or_instance
+    _core.set_main_program(instance)
+    return instance
+
+
+def reset():
+    """Restart the world: all cells removed, signal grids zeroed,
+    chipmunk space rebuilt. World parameters and signal registrations
+    are kept, and the installed `set_main(...)` program continues to
+    run on the new world. Equivalent to CCL's `reset()`.
+    """
+    _core.reset_world()

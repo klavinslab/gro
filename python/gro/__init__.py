@@ -38,6 +38,10 @@ from gro._program import (
     always,
     rate,
     compose,
+    Composed,
+    WorldProgram,
+    set_main,
+    reset,
     GroLoadError,
 )
 
@@ -166,6 +170,10 @@ __all__ = [
     "always",
     "rate",
     "compose",
+    "Composed",
+    "WorldProgram",
+    "set_main",
+    "reset",
     # Signals (world-coordinate API; cell-local forms are Program methods)
     "signal",
     "set_signal",

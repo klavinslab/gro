@@ -141,7 +141,13 @@ class MicroProgram {
   // propagate (the CCL default; CCL's gro_program uses a separate
   // split_gro_program helper).
   virtual MicroProgram * split ( float /*mother_frac*/ ) { return NULL; }
-  
+
+  // True for programs that World should `delete` in its destructor.
+  // The CCL gro_Program is owned externally (by GroThread), so the
+  // default is false. PythonWorldProgram returns true since the
+  // Python `set_main(...)` binding hands ownership to the World.
+  virtual bool owned_by_world ( void ) const { return false; }
+
  private:
 
 };
@@ -183,7 +189,7 @@ struct Barrier {
 
 class GroThread;
 
-class World { 
+class World {
 
  public:
 
@@ -197,6 +203,16 @@ class World {
 
   void set_program ( MicroProgram * p ) { prog = p; }
   MicroProgram * get_program ( void ) { return prog; }
+
+  // Deferred deletion for a MicroProgram that is on the C++ stack:
+  // if `set_main` is called from inside a rule (i.e. from inside the
+  // currently-installed prog's `world_update`), we can't immediately
+  // delete the old prog because its frame is still active. Push it
+  // here instead; World::update drains the queue after world_update
+  // returns. The dtor drains too in case the user reassigned but
+  // shut down before another tick.
+  void schedule_prog_deletion ( MicroProgram * p ) { pending_prog_deletions.push_back ( p ); }
+  void drain_pending_prog_deletions ( void );
 
   void init ();
   // Program-independent setup: chipmunk space, population list, and
@@ -304,6 +320,7 @@ class World {
   std::vector<Signal *> signal_list;
   std::vector<Reaction> reaction_list;
   MicroProgram * prog;
+  std::vector<MicroProgram *> pending_prog_deletions;
   bool chemostat_mode;
   int next_id;
   int step;

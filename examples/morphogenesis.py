@@ -3,6 +3,8 @@
 A developmental state machine: each cell carries a state index `q`;
 divisions and timers drive transitions through a tree of states,
 producing a spatial pattern of cell types (rendered as four colors).
+The world program (`Main`) re-seeds the simulation every 120 time
+units so the pattern develops over and over.
 
 Composed form, mirroring the CCL original:
 
@@ -21,10 +23,6 @@ Composed form, mirroring the CCL original:
 In Python we get the same shape via `compose(...)` with a `share`
 list: one shared (q, t, event) storage, and each `state_node(...)`
 gets its own auto-namespaced `active` local.
-
-Depends on (still landing):
-- WorldProgram + set_main (the periodic `program main()` re-seed
-  every 120 time units in morphogenesis.gro) — M5b.
 """
 
 from gro import *
@@ -144,4 +142,21 @@ Morpho = compose(
 )
 
 
+class Main(WorldProgram):
+    """Periodic re-seed of the simulation. Mirrors CCL's
+    `program main()` in morphogenesis.gro."""
+    state = State(t=1.0)
+
+    @always
+    def tick(self):
+        self.state.t += dt()
+
+    @when(lambda self: self.state.t > 120)
+    def reseed(self):
+        reset()
+        ecoli(x=0, y=0, program=Morpho)
+        self.state.t = 0.0
+
+
 ecoli(x=0, y=0, program=Morpho)
+set_main(Main)

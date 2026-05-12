@@ -120,6 +120,38 @@ private:
     py::object instance_;
 };
 
+// World-level analogue of PythonMicroProgram. Stored on World::prog
+// for Python-loaded worlds that call gro.set_main(...). The World
+// calls world_update() once per simulation tick.
+class PythonWorldProgram : public MicroProgram {
+public:
+    explicit PythonWorldProgram(py::object instance)
+        : instance_(std::move(instance)) {}
+
+    ~PythonWorldProgram() override {
+        if (!Py_IsInitialized()) {
+            instance_.release();
+            return;
+        }
+        py::gil_scoped_acquire gil;
+        instance_ = py::object();
+    }
+
+    void world_update(World * /*w*/) override {
+        py::gil_scoped_acquire gil;
+        try {
+            instance_.attr("_tick")();
+        } catch (py::error_already_set & e) {
+            std::cerr << "Python main() rule error:\n" << e.what() << std::endl;
+        }
+    }
+
+    bool owned_by_world() const override { return true; }
+
+private:
+    py::object instance_;
+};
+
 PYBIND11_EMBEDDED_MODULE(_core, m) {
     m.doc() = "gro core bindings (C++ side of the gro Python module).";
 
@@ -224,6 +256,28 @@ PYBIND11_EMBEDDED_MODULE(_core, m) {
     // World::update sweeps marked cells out of the population after
     // the per-cell loop finishes. Same mechanism CCL's die() uses.
     m.def("die_cell", []() { current_cell()->mark_for_death(); });
+
+    // ---- world program (`main()` analogue) ----
+    // Installs a Python program instance as the world's per-tick
+    // main program. The World takes ownership (see
+    // MicroProgram::owned_by_world). If a previous Python-owned
+    // main was installed, it's stashed for deferred deletion --
+    // calling set_main(...) from inside a rule body means the old
+    // prog's world_update is on the C++ stack and a direct delete
+    // would be use-after-free. World::update drains the queue
+    // after world_update returns.
+    m.def("set_main_program", [](py::object instance) {
+        World * w = world();
+        MicroProgram * existing = w->get_program();
+        if (existing && existing->owned_by_world()) {
+            w->schedule_prog_deletion(existing);
+        }
+        w->set_program(new PythonWorldProgram(instance));
+    });
+
+    // Restart the world: kill all cells, zero signals, rebuild the
+    // chipmunk space. Equivalent to CCL's reset().
+    m.def("reset_world", []() { world()->restart(); });
 
     // ---- spawning ----
     m.def("ecoli",

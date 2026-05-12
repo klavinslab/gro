@@ -64,7 +64,29 @@ World::~World ( void ) {
 
     delete population;
 
-    if (prog) prog->destroy(this);  // null for Python-loaded worlds
+    // Order matters: cells, signals, and chipmunk space are torn
+    // down before prog->destroy() so destroy() cannot safely touch
+    // them. Both PythonWorldProgram::destroy and the default no-op
+    // honor that contract today; a future world program needing
+    // World access during destroy would have to move this earlier.
+    if (prog) {
+        prog->destroy(this);
+        // CCL's gro_Program is owned by GroThread; Python-installed
+        // world programs (via set_main) hand ownership to World and
+        // get deleted here.
+        if (prog->owned_by_world()) {
+            delete prog;
+            prog = NULL;
+        }
+    }
+    drain_pending_prog_deletions();
+}
+
+void World::drain_pending_prog_deletions ( void ) {
+    for (MicroProgram * p : pending_prog_deletions) {
+        delete p;
+    }
+    pending_prog_deletions.clear();
 
 }
 
@@ -360,7 +382,14 @@ void World::update ( void ) {
 
     if ( population->size() < get_param ( "population_max" ) ) {
 
-        if ( prog ) prog->world_update ( this );  // null for Python-loaded worlds (no main yet)
+        if ( prog ) {
+            prog->world_update ( this );  // null for Python-loaded worlds (no main yet)
+            // If a rule body called set_main(...) and replaced the
+            // currently-running prog, the old one was stashed for
+            // deferred deletion. Now that world_update has returned
+            // and the prog's C++ frame is gone, it's safe to free.
+            drain_pending_prog_deletions();
+        }
         std::list<Cell *>::iterator j;
 
         // update each cell
