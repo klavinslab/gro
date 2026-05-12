@@ -37,6 +37,7 @@ from gro._program import (
     when,
     always,
     rate,
+    GroLoadError,
 )
 
 
@@ -178,4 +179,5 @@ __all__ = [
     "dark_theme",
     # Misc
     "rand",
+    "GroLoadError",
 ]

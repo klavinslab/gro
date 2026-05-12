@@ -13,9 +13,14 @@ from __future__ import annotations
 import ast
 import copy as _copy
 import inspect
+import textwrap
 from types import SimpleNamespace
 
 import _core
+
+
+class GroLoadError(Exception):
+    """Raised when a gro Python program is structurally invalid."""
 
 
 # ----------------------------------------------------------------------------
@@ -117,6 +122,57 @@ def field(factory):
 # Rule decorators
 # ----------------------------------------------------------------------------
 
+def _validate_predicate(predicate):
+    """Best-effort check that an @when predicate doesn't mutate state.
+
+    Python lambdas can't syntactically contain `=` or `+=`, so the
+    only in-lambda mutation is the walrus operator (`:=`). We reject
+    that at class-creation time so it fails loudly instead of silently
+    changing state during simulation. A fuller call-allowlist sandbox
+    (rejecting `self.emit_signal(...)`, etc., in predicates) is
+    deferred to a follow-up; today the rule is "no walrus and no
+    nested lambda" plus the runtime promise that a careless predicate
+    will at worst slow the simulator, not corrupt other cells' state.
+    """
+    if not callable(predicate):
+        return
+    try:
+        src = textwrap.dedent(inspect.getsource(predicate))
+    except (OSError, TypeError):
+        return  # dynamic / no source — skip silently
+    src = src.strip()
+    # The source is often the `@when(lambda self: …)` decorator line.
+    # ast.parse needs balanced trailing punctuation; trim until it
+    # accepts.
+    parsed = None
+    for trim in range(6):
+        try:
+            parsed = ast.parse(src[: len(src) - trim] if trim else src,
+                               mode="exec")
+            break
+        except SyntaxError:
+            continue
+    if parsed is None:
+        return
+    lambda_node = next(
+        (n for n in ast.walk(parsed) if isinstance(n, ast.Lambda)), None
+    )
+    if lambda_node is None:
+        return
+    for n in ast.walk(lambda_node.body):
+        if isinstance(n, ast.NamedExpr):
+            raise GroLoadError(
+                "@when predicate must be a pure expression — found a "
+                "walrus operator (:=) inside the lambda. Rule guards "
+                "may only read state, not assign to it."
+            )
+        if isinstance(n, ast.Lambda):
+            raise GroLoadError(
+                "@when predicate may not contain a nested lambda. "
+                "Move the helper to a named method or module function."
+            )
+
+
 def when(predicate):
     """`@when(lambda self: <expr>)` — fire when the predicate is true.
 
@@ -128,6 +184,7 @@ def when(predicate):
             "Did you write @when(self.state.t > 10) instead of "
             "@when(lambda self: self.state.t > 10)?"
         )
+    _validate_predicate(predicate)
     def decorate(fn):
         fn._gro_rule = ("when", predicate)
         return fn
@@ -159,10 +216,20 @@ def rate(k):
 
 class _ProgramMeta(type):
     """Walks decorated methods at class definition and builds the
-    rule list `_gro_rules` that `_tick` iterates each step.
+    rule list `_gro_rules` that `_tick` iterates each step. Also
+    enforces strict-mode invariants on the class shape.
     """
     def __new__(mcs, name, bases, ns):
         cls = super().__new__(mcs, name, bases, ns)
+        # Strict-mode class shape check: if `state` is set on the
+        # subclass, it must be a State(...) factory (catches the
+        # "state = SimpleNamespace(t=0)" / "state = {...}" mistake).
+        # The base Program class itself doesn't have state, so skip.
+        if "state" in ns and not isinstance(ns["state"], _StateFactory):
+            raise GroLoadError(
+                f"Program subclass {name!r}: `state` must be assigned "
+                f"State(...), got {type(ns['state']).__name__}."
+            )
         rules = []
         # Preserve declaration order: Python 3.7+ guarantees
         # __dict__ insertion order.

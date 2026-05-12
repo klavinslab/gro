@@ -71,8 +71,7 @@ API surface listed in this document (`Program`, `WorldProgram`,
 `State`, `field`, `when`, `always`, `rate`, `signal`, `ecoli`,
 `set_main`, `set_param`, `get_param`, `set_signal`, `get_signal`,
 `emit_signal`, `absorb_signal`, `dt`, `rand`, `compose`, `Composed`,
-`Preserved`, `Halved`, …) plus the exception types (`GroError`,
-`GroLoadError`).
+`Preserved`, …) plus the exception types (`GroLoadError`).
 
 Programs that prefer a tighter namespace can `import gro` and use
 qualified names (`gro.rule`, `gro.always`, …) instead. The simulator
@@ -96,7 +95,7 @@ ahl = signal(diffusion=1.0, degradation=1.0)
 set_param("dt", 0.075)
 
 class Leader(Program):
-    state = State(t: float = 2.4)
+    state = State(t=2.4)
 
     def setup(self):
         set_param("ecoli_growth_rate", 0.0)
@@ -119,7 +118,7 @@ Semantic correspondence with CCL:
 | ------------------------------------------ | --------------------------------------- |
 | `include gro` (standard library)           | `from gro import *`                     |
 | `program p() := { … };`                    | `class P(Program): …`                   |
-| `x := 0;` (initializer)                    | field in `state = State(x: int = 0)`    |
+| `x := 0;` (initializer)                    | field in `state = State(x=0)`           |
 | `condition : { actions }` (guarded cmd)    | `@when(lambda self: ...)`               |
 | `true : { … }`                             | `@always`                               |
 | `rate(0.1) : { … }`                        | `@rate(0.1)`                            |
@@ -133,22 +132,24 @@ Semantic correspondence with CCL:
 
 ```python
 state = State(
-    t:        float             = 2.4,             # numeric → halved on divide
-    gfp:      int               = 0,               # numeric → halved
-    mode:     int               = 0,               # numeric → halved (probably wrong default)
-    history:  list              = field(list),     # each cell gets a fresh []
-    counters: dict              = field(dict),     # each cell gets a fresh {}
-    last_msg: str               = "",
-    period:   Preserved[float]  = 5.0,             # explicit: not halved
-    count:    Halved[int]       = 100,             # explicit: halved (redundant default but fine)
+    t=2.4,                          # numeric → halved on divide
+    gfp=0,                          # numeric → halved
+    mode=Preserved(0),              # numeric, opt-out of halving
+    history=field(list),            # each cell gets a fresh []
+    counters=field(dict),           # each cell gets a fresh {}
+    last_msg="",
+    period=Preserved(5.0),          # numeric, preserved across divide
 )
 ```
 
-- `State(...)` builds a per-class frozen-shape dataclass.
+- `State(...)` builds a per-class state schema. At spawn time each
+  cell gets its own `state` namespace populated from the defaults.
 - Numeric fields are halved on cell division by default; non-numeric
   fields are deep-copied.
-- Annotate with `Preserved[T]` to keep a numeric value across division;
-  `Halved[T]` for explicit-halved (default for numerics).
+- Wrap a value in `Preserved(value)` to opt it out of halving — for
+  state that represents a flag or timer rather than a molecular count.
+  (Halving is already the default for numerics, so there's no
+  corresponding `Halved(...)` wrapper.)
 - Mutable types (`list`, `dict`, `set`, user-defined classes) are
   perfectly valid state — CCL has lists and records, and we keep
   parity. The only restriction is on **how the default is spelled**:
@@ -172,7 +173,22 @@ def relay(self):
 
 The predicate passed to `@when(...)` is **AST-inspected at class
 definition time**.
-Allowed nodes:
+
+The current implementation enforces the minimal-safety subset:
+
+- **Forbidden**: the walrus operator (`:=`) inside the lambda — Python
+  lambdas can't syntactically contain `=` or `+=`, so walrus is the
+  only in-lambda assignment form.
+- **Forbidden**: nested `Lambda` inside the guard (move the helper to
+  a named method or module function).
+
+A violation raises `GroLoadError` at class-creation time. This catches
+the obvious foot-guns; the user still has the freedom to call
+arbitrary functions from a guard, which is a tradeoff — looser than
+CCL's pure-expression guards, but enforceable without a full
+call-allowlist sandbox.
+
+A fuller sandbox is planned for a follow-up milestone:
 
 - `Compare`, `BoolOp`, `UnaryOp`, `BinOp` (math/logic operators)
 - `Attribute` accesses on `self`, on the `gro` API surface
@@ -181,22 +197,14 @@ Allowed nodes:
 - `Call` to a closed allowlist: `self.get_signal`, `self.get_param`,
   `get_signal`, `get_param`, `rate`, `min`, `max`, `abs`, `len`,
   `math.*` (the safe subset).
+- Forbidden in the fuller form: calls to anything else (no `print`,
+  no user functions, no `self.emit_signal`, etc.), `Yield`,
+  comprehensions with side-effecty generators.
 
-Forbidden:
-
-- `Assign`, `AugAssign` (no mutation in guards)
-- Calls to anything else (no `print`, no user functions, no
-  `self.emit_signal`, etc.)
-- `Lambda` inside the guard, `Yield`, comprehensions with side-effecty
-  generators.
-
-The sandbox treats both `gro.foo` (qualified) and `foo` (post `from gro
-import *`) identically — the AST walker resolves names against
-`gro.__all__` rather than against the user's imports.
-
-A violation is a load-time error with file/line/column pointing into
-the user's source. The user gets ~the same property CCL gave them:
-guards can't have side effects.
+The full sandbox would treat both `gro.foo` (qualified) and `foo`
+(post `from gro import *`) identically by resolving names against
+`gro.__all__`, and report file/line/column on violation — giving the
+user the same property CCL gave them: guards can't have side effects.
 
 Rule body restrictions are looser — bodies can call anything in the
 `gro` API, mutate `self.state.*`, etc. The body's only structural
@@ -298,8 +306,8 @@ CCL halves all numeric locals when a cell divides. With the declared
 schema, gro knows exactly what to do.
 
 From the user's perspective, division is automatic — they declare
-state via `State(...)` (with optional `Halved` / `Preserved`
-annotations) and don't write any division code themselves. The
+state via `State(...)` (with optional `Preserved` wrappers) and
+don't write any division code themselves. The
 behavior below is the *simulator's* job, shown here as pseudocode so
 the implementation can be specified unambiguously:
 
@@ -390,7 +398,7 @@ the world level, not per cell. The Python equivalent is a subclass of
 
 ```python
 class Main(WorldProgram):
-    state = State(t: float = 0.0)
+    state = State(t=0.0)
 
     @always
     def tick(self):
@@ -418,7 +426,7 @@ Differences from `Program`:
   World-level signal control still works via the global functions
   (`set_signal`, `get_signal`).
 - Singleton — one instance per world. Division semantics don't apply,
-  so `Halved` / `Preserved` annotations on the state schema are
+  so `Preserved` markers on the state schema are
   no-ops.
 
 Composition still works:
@@ -464,17 +472,27 @@ The user-facing `gro` module is built from two layers:
 
 ```
 gro/                            ← user-facing package (`from gro import *`)
-├── __init__.py                 ← Python: decorators, Program, State,
-│                                 compose, AST sandbox, strict-mode
-│                                 enforcement, type-helper protocols
+├── __init__.py                 ← module entry: re-exports from _core
+│                                 and _program; defines world defaults
+│                                 (_setup_world), themes, the ecoli
+│                                 wrapper, and the public __all__.
+│                                 Plays the role of include/gro.gro.
+├── _program.py                 ← program-model machinery: Program,
+│                                 State, Preserved, field, @when /
+│                                 @always / @rate, _tick, _split,
+│                                 strict-mode + AST checks. No
+│                                 direct CCL analogue (CCL's program
+│                                 syntax lives in the parser, not the
+│                                 stdlib).
 └── _core   (built-in module)   ← C++ via pybind11: simulator hooks,
-                                  Cell class, signal/parameter
-                                  primitives, world queries
+                                  cell-local API, signal/parameter
+                                  primitives, world queries.
 ```
 
-`gro/__init__.py` does `from ._core import *` for the C++ primitives,
-defines all the pure-Python idioms on top, and curates `__all__` so
-`from gro import *` brings in exactly the documented surface.
+`gro/__init__.py` imports from `_core` (C++ primitives) and from
+`gro._program` (program-model machinery), defines the world-defaults
+and theme stdlib functions, and curates `__all__` so `from gro
+import *` brings in exactly the documented surface.
 
 `_core` is registered via `PyImport_AppendInittab("_core", &init_core)`
 before `Py_Initialize`; the user never sees it as a separate import.
@@ -640,7 +658,7 @@ once milestone 6 lands.
 3. **Program class with state schema.** `Program`, `State`, `when`,
    `always`. AST sandbox for the `@when(...)` predicate. Strict mode.
    wave.py runs and visually matches wave.gro.
-4. **Cell division semantics.** `Preserved` / `Halved`, per-field
+4. **Cell division semantics.** `Preserved`, per-field
    halving rules, `just_divided` / `daughter` plumbed.
 5. **Composition.** `compose`, `Composed`, `share=[...]`, `requires`,
    parametric composition via `.with_args`.
