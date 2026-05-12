@@ -257,6 +257,24 @@ PYBIND11_EMBEDDED_MODULE(_core, m) {
     // the per-cell loop finishes. Same mechanism CCL's die() uses.
     m.def("die_cell", []() { current_cell()->mark_for_death(); });
 
+    // ---- force-divide ----
+    // Asks the current cell to divide on its next divide() check
+    // regardless of size. Mirrors CCL's divide(): used inside rules
+    // that want to override the size-mean / size-variance machinery.
+    m.def("force_divide_cell", []() { current_cell()->force_divide(); });
+
+    // ---- selected ----
+    // True while the user has the current cell selected in the GUI.
+    m.def("current_selected", []() -> bool { return current_cell()->is_selected(); });
+
+    // ---- console message ----
+    // Adds a string to the gro console on the given channel.
+    // CCL idiom is `message(1, ...)` for per-cell messages from a
+    // `selected:` rule, `message(0, ...)` for setup logging.
+    m.def("message", [](int channel, const std::string & text) {
+        world()->message(channel, text);
+    }, py::arg("channel"), py::arg("text"));
+
     // ---- world program (`main()` analogue) ----
     // Installs a Python program instance as the world's per-tick
     // main program. The World takes ownership (see

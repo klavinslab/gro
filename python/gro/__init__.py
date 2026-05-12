@@ -26,6 +26,7 @@ from _core import (
     dt,
     time,
     rand,
+    message,
 )
 from _core import ecoli as _core_ecoli
 
@@ -183,6 +184,7 @@ __all__ = [
     "get_param",
     "dt",
     "time",
+    "message",
     # Themes
     "set_theme",
     "bright_theme",

@@ -378,6 +378,13 @@ class Program(metaclass=_ProgramMeta):
         `die()`."""
         _core.die_cell()
 
+    def divide(self):
+        """Ask this cell to divide on its next divide check, bypassing
+        the size-mean / size-variance machinery. Mirrors CCL's
+        `divide()` — typically used in a `@rate(k) & volume > V`
+        guard to do volume-thresholded division."""
+        _core.force_divide_cell()
+
     def emit_signal(self, handle, amount):
         _core.emit_signal_cell(handle, amount)
 
@@ -421,6 +428,21 @@ class Program(metaclass=_ProgramMeta):
         `just_divided` to break symmetry between the two halves at
         division time. Mirrors CCL's `daughter` keyword."""
         return _core.current_is_daughter()
+
+    @property
+    def selected(self):
+        """True while the user has this cell selected in the GUI.
+        Mirrors CCL's `selected` keyword — typically used to gate
+        `self.message(...)` calls so per-cell info only prints for
+        the highlighted cell."""
+        return _core.current_selected()
+
+    def message(self, channel, text):
+        """Print a string on the given console channel. Equivalent
+        to module-level `message(...)` but accepts the same call
+        from inside a rule body so the user can write
+        `self.message(1, f"cell {self.id}: vol={self.volume}")`."""
+        _core.message(int(channel), str(text))
 
     @property
     def gfp(self): return _core.current_get_rep(_REP_GFP)
