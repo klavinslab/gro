@@ -258,7 +258,7 @@ Composite = compose(P1, P2, share=["t", "gfp"])
   rule-declaration order within a part. Matches CCL's "guarded commands
   union, in order" semantics.
 
-Parametric composition:
+Parametric composition (deferred to M5b — `Program.with_args(...)`):
 
 ```python
 def Repeater(x):
@@ -270,7 +270,22 @@ def Repeater(x):
 into `setup()` and (if any of the args are fields) into the initial
 state.
 
-Class-style sugar:
+Pending `.with_args`, the working form for parametric programs is a
+plain factory function that closes over the parameters and returns a
+`Program` subclass:
+
+```python
+def state_node(this, m_next, d_next, tf, gr, sigs):
+    class S(Program):
+        state = State(active=False)
+        requires = ["q", "t"]
+        @when(lambda self: self.state.q == this and tf > 0
+                           and self.state.t > tf)
+        def expire(self): ...
+    return S
+```
+
+Class-style sugar (deferred to M5b — `Composed` base class):
 
 ```python
 class Wave(Composed):
@@ -660,8 +675,14 @@ once milestone 6 lands.
    wave.py runs and visually matches wave.gro.
 4. **Cell division semantics.** `Preserved`, per-field
    halving rules, `just_divided` / `daughter` plumbed.
-5. **Composition.** `compose`, `Composed`, `share=[...]`, `requires`,
-   parametric composition via `.with_args`.
+5. **Composition.** Split across two sub-milestones:
+   - **M5a:** `compose`, `share=[...]`, `requires`, per-part scoped
+     state. Parametric programs via plain factory functions that
+     close over parameters. `examples/morphogenesis.py` refactored
+     to its CCL-mirroring composed form.
+   - **M5b:** `Composed` class-style sugar, `Program.with_args(...)`,
+     `WorldProgram` + `set_main(...)` (and the periodic re-seed
+     `main()` loop in `morphogenesis.gro`).
 6. **Polish.** Reporters, error overlay path for Python errors, docs,
    `.py` examples mirroring the `.gro` ones. Bump version, build DMG.
 

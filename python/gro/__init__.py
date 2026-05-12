@@ -37,6 +37,7 @@ from gro._program import (
     when,
     always,
     rate,
+    compose,
     GroLoadError,
 )
 
@@ -164,6 +165,7 @@ __all__ = [
     "when",
     "always",
     "rate",
+    "compose",
     # Signals (world-coordinate API; cell-local forms are Program methods)
     "signal",
     "set_signal",

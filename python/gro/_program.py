@@ -82,6 +82,17 @@ class _StateFactory:
             setattr(ns, name, value)
         return ns
 
+    @classmethod
+    def _from_validated(cls, defaults, preserved):
+        """Build a factory from already-validated defaults+preserved
+        sets. Skips __init__ (which would re-run the mutable-literal
+        check); used by compose() where each per-part factory has
+        already been validated."""
+        f = cls.__new__(cls)
+        f._defaults = defaults
+        f._preserved = preserved
+        return f
+
     @property
     def field_names(self):
         return list(self._defaults.keys())
@@ -386,3 +397,188 @@ class Program(metaclass=_ProgramMeta):
     def cfp(self): return _core.current_get_rep(_REP_CFP)
     @cfp.setter
     def cfp(self, value): _core.current_set_rep(_REP_CFP, int(value))
+
+
+# ----------------------------------------------------------------------------
+# Composition
+# ----------------------------------------------------------------------------
+
+class _PartScope:
+    """View onto one part's slice of a composite's raw state.
+
+    Shared fields pass through to the raw namespace unchanged; local
+    fields are remapped to a part-prefixed key in the raw namespace
+    so multiple parts can declare the same local name (e.g. `active`)
+    without colliding. CCL gets the same effect by giving each
+    sub-program its own SymbolTable.
+
+    `_aliases` is a `local_name -> prefixed_key` dict built once at
+    compose() time, so attribute access is one dict.get() + one
+    underlying getattr, with no per-tick string concat.
+    """
+    __slots__ = ("_raw", "_aliases")
+
+    def __init__(self, raw_ns, aliases):
+        object.__setattr__(self, "_raw",     raw_ns)
+        object.__setattr__(self, "_aliases", aliases)
+
+    def __getattr__(self, name):
+        return getattr(self._raw, self._aliases.get(name, name))
+
+    def __setattr__(self, name, value):
+        setattr(self._raw, self._aliases.get(name, name), value)
+
+
+def compose(*parts, share=None):
+    """Combine several `Program` subclasses into one composite program.
+
+    The composite has the union of every part's rules (in part-list
+    order, then declaration order within a part) and a state namespace
+    that contains every field declared by any part:
+
+    - Fields listed in `share=[...]` get a single shared storage that
+      every part sees through `self.state.<name>`.
+    - All other fields are auto-namespaced per-part, so two parts can
+      both declare `active=False` without conflict (CCL achieves the
+      same via per-sub-program symbol tables).
+
+    Each part's rules are invoked under a `_PartScope` view that
+    rewrites `self.state.<local>` to the prefixed key but leaves
+    shared-field accesses unchanged.
+
+    Equivalent to CCL's `p() := q() + r() sharing x, y, ...`.
+    """
+    share = set(share or ())
+
+    if not parts:
+        raise GroLoadError("compose() requires at least one Program part")
+    for i, p in enumerate(parts):
+        if not (isinstance(p, type) and issubclass(p, Program)):
+            raise GroLoadError(
+                f"compose() arg #{i}: {p!r} is not a Program subclass")
+
+    declared_anywhere = set()
+    for p in parts:
+        f = getattr(p, "state", None)
+        if isinstance(f, _StateFactory):
+            declared_anywhere.update(f._defaults.keys())
+
+    for name in share:
+        if name not in declared_anywhere:
+            raise GroLoadError(
+                f"compose(share=[...]): '{name}' is not declared in "
+                f"any part's State()")
+
+    merged_defaults = {}
+    merged_preserved = set()
+    parts_aliases = []   # parts_aliases[i] = {local_name: prefixed_key}
+
+    for idx, p in enumerate(parts):
+        aliases = {}
+        f = getattr(p, "state", None)
+        if isinstance(f, _StateFactory):
+            for name, default in f._defaults.items():
+                if name in share:
+                    # Right (later parts) takes precedence on shared
+                    # defaults — matches CCL's CompositeProgram which
+                    # uses the right-hand value when both define it.
+                    merged_defaults[name] = default
+                    if name in f._preserved:
+                        merged_preserved.add(name)
+                else:
+                    key = f"_p{idx}_{name}"
+                    merged_defaults[key] = default
+                    aliases[name] = key
+                    if name in f._preserved:
+                        merged_preserved.add(key)
+        parts_aliases.append(aliases)
+
+    # Validate `requires` on each part: every required name must be in
+    # `share`. The earlier "share name declared anywhere" check makes
+    # this transitively equivalent to DESIGN.md's "declared in some
+    # part's State AND listed in share".
+    for p in parts:
+        for name in getattr(p, "requires", None) or ():
+            if name not in share:
+                raise GroLoadError(
+                    f"compose(): {p.__name__}.requires = [..., {name!r}, ...] "
+                    f"but '{name}' is not in share=[...] — required "
+                    f"names must be shared so all parts see one storage")
+
+    merged_factory = _StateFactory._from_validated(merged_defaults, merged_preserved)
+
+    # Each rule carries its source part index so _tick can pick the
+    # right pre-built scope on dispatch.
+    composed_rules = []
+    for idx, p in enumerate(parts):
+        for rule_tuple in p._gro_rules:
+            composed_rules.append((idx, rule_tuple))
+
+    # Build a fresh subclass via the metaclass so it goes through the
+    # normal class-creation pipeline (lets a future strict-mode check
+    # see composites without special casing). We then write the
+    # composite-specific class attributes onto it; we can't put them
+    # into the class body because they depend on captured locals.
+    class Composite(Program):
+        pass
+
+    Composite.state                = merged_factory
+    Composite._gro_preserved       = merged_preserved
+    Composite._gro_composed_rules  = composed_rules
+    Composite._gro_part_aliases    = parts_aliases
+    Composite._gro_parts           = parts
+    Composite.__name__ = "Composed(" + ",".join(p.__name__ for p in parts) + ")"
+
+    def __init__(self):
+        self.state = merged_factory.make()
+        # One PartScope per part, reused on every rule fire. Built
+        # here (not per-rule in _tick) to avoid ~rule_count * cell_count
+        # * tick_rate allocations per second.
+        self._scopes = [_PartScope(self.state, parts_aliases[i])
+                        for i in range(len(parts))]
+    Composite.__init__ = __init__
+
+    def setup(self):
+        raw = self.state
+        for idx, p in enumerate(parts):
+            self.state = self._scopes[idx]
+            try:
+                p.setup(self)
+            finally:
+                self.state = raw
+    Composite.setup = setup
+
+    def _tick(self):
+        raw = self.state
+        scopes = self._scopes
+        # First: parts' rules under their scoped state views.
+        for part_idx, (_name, _kind, predicate, action) in self._gro_composed_rules:
+            self.state = scopes[part_idx]
+            try:
+                if predicate(self):
+                    action(self)
+            finally:
+                self.state = raw
+        # Then: any rules added on a subclass of this composite. They
+        # run against the raw (merged) state. Rare path; lets the user
+        # post-compose tweak the composite if they want.
+        for _name, _kind, predicate, action in type(self)._gro_rules:
+            if predicate(self):
+                action(self)
+    Composite._tick = _tick
+
+    def _split(self, mother_frac):
+        # Delegate halving to the base implementation; it already
+        # handles the merged namespace correctly because every field
+        # (shared or namespaced-local) lives directly on the raw
+        # SimpleNamespace and _gro_preserved spans both.
+        daughter = Program._split(self, mother_frac)
+        # Mother's _scopes still point at her (mutated-in-place) raw
+        # state — no rebuild needed for her. Daughter has a fresh raw
+        # state from deepcopy, so her scopes need to point at it.
+        daughter._scopes = [_PartScope(daughter.state, parts_aliases[i])
+                            for i in range(len(parts))]
+        return daughter
+    Composite._split = _split
+
+    return Composite
