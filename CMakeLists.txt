@@ -145,25 +145,48 @@ set_source_files_properties(groicon.icns PROPERTIES
 )
 
 # ----------------------------------------------------------------------------
-# Bundle examples/ and include/ into gro.app/Contents/Resources/ so the
-# .app is self-contained and ships in the DMG. main.cpp chdirs to
-# applicationDirPath/../Resources at startup, so the CCL lexer finds
-# `include/gro.gro` relative to it.
+# include/, examples/, and python/ live as siblings of gro.app, not
+# inside its bundle. main.cpp chdirs to gro.app's parent at startup,
+# so the CCL lexer finds `include/gro.gro` and the Python embedding
+# finds `python/gro/__init__.py` relative to that directory.
+#
+# For the dev build, we put symlinks alongside the build's gro.app
+# (in CMAKE_RUNTIME_OUTPUT_DIRECTORY, default = CMAKE_BINARY_DIR)
+# pointing back at the source tree. That way edits to the source
+# show up on next launch with no copy step, and the same chdir
+# logic that production uses works during dev.
+#
+# For the DMG, packaging will stage gro.app + the three real
+# directories at the DMG's top level.
 # ----------------------------------------------------------------------------
+set(_gro_app_siblings_dir "$<TARGET_FILE_DIR:gro>/../../..")
+
 add_custom_command(TARGET gro POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E rm -rf
-        "$<TARGET_BUNDLE_CONTENT_DIR:gro>/Resources/examples"
-        "$<TARGET_BUNDLE_CONTENT_DIR:gro>/Resources/include"
-        "$<TARGET_BUNDLE_CONTENT_DIR:gro>/Resources/python"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    COMMAND ${CMAKE_COMMAND} -E rm -f
+        "${_gro_app_siblings_dir}/examples"
+        "${_gro_app_siblings_dir}/include"
+        "${_gro_app_siblings_dir}/python"
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
         ${CMAKE_CURRENT_SOURCE_DIR}/examples
-        "$<TARGET_BUNDLE_CONTENT_DIR:gro>/Resources/examples"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${_gro_app_siblings_dir}/examples"
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
         ${CMAKE_CURRENT_SOURCE_DIR}/include
-        "$<TARGET_BUNDLE_CONTENT_DIR:gro>/Resources/include"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${_gro_app_siblings_dir}/include"
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
         ${CMAKE_CURRENT_SOURCE_DIR}/python
-        "$<TARGET_BUNDLE_CONTENT_DIR:gro>/Resources/python"
+        "${_gro_app_siblings_dir}/python"
+    VERBATIM
+)
+
+# Convenience: drop a gro.app symlink at the source-tree root pointing
+# at the dev build's bundle. Lets the user double-click gro.app from
+# the project directory without descending into build/.
+add_custom_command(TARGET gro POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E rm -f
+        "${CMAKE_CURRENT_SOURCE_DIR}/gro.app"
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+        "$<TARGET_BUNDLE_DIR:gro>"
+        "${CMAKE_CURRENT_SOURCE_DIR}/gro.app"
     VERBATIM
 )
 

@@ -32,9 +32,13 @@ int main(int argc, char *argv[])
     qt_set_sequence_auto_mnemonic(true);
 
     QApplication a(argc, argv);
-    // examples/ and include/ are bundled into Contents/Resources/ by
-    // CMake, so chdir there for the CCL lexer's include resolution.
-    chdir((QCoreApplication::applicationDirPath() + "/../Resources")
+    // include/, examples/, and python/ live alongside gro.app (not
+    // inside it). At runtime we chdir to the parent of gro.app so
+    // relative lookups for `include/gro.gro`, the user's `.py`
+    // imports of `gro`, and File->Open's default location all
+    // resolve to those sibling directories. Build-tree layout
+    // mirrors this via symlinks created by CMake.
+    chdir((QCoreApplication::applicationDirPath() + "/../../..")
               .toLocal8Bit().constData());
     Q_INIT_RESOURCE(icons);
     Gui w(argc,argv);
