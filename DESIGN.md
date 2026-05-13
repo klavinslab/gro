@@ -679,37 +679,106 @@ prints to the console panel.
 Runtime exceptions inside a rule body have the same path: catch in C++,
 format with `traceback`, halt the simulation, show overlay + traceback.
 
-## Phasing / milestones
+## Production readiness (post-M6, pre-merge-to-master)
 
-All work on `python-embedding`. We merge to `master` and tag `v1.1.0`
-once milestone 6 lands.
+All milestones M1–M6 landed on `python-embedding`. The branch is
+behaviorally complete (Python frontend mirrors the CCL one; 21 of
+23 example ports done). Before merging to `master` and tagging
+`v1.1.0`, the items below need attention. Grouped by risk-of-
+shipping rather than by polish; items marked **load-bearing** would
+block release if skipped.
 
-1. **pybind11 plumbing.** `find_package(Python3)`, `FetchContent`
-   pybind11, link `pybind11::embed`. Empty `gro` module. `Py_Initialize`
-   on demand, `Py_Finalize` at shutdown. gro builds and runs `.gro`
-   files unchanged; passing a `.py` file prints "Python support not
-   implemented" to the console.
-2. **Minimal API surface.** `set_param`, `get_param`, `signal`,
-   `set_signal`, `get_signal`, `dt`, `ecoli`. Enough to run a trivial
-   program with no behavior. A `.py` file with `ecoli(x=0, y=0)` puts a
-   cell on the canvas. `__all__` is set; `from gro import *` works.
-3. **Program class with state schema.** `Program`, `State`, `when`,
-   `always`. AST sandbox for the `@when(...)` predicate. Strict mode.
-   wave.py runs and visually matches wave.gro.
-4. **Cell division semantics.** `Preserved`, per-field
-   halving rules, `just_divided` / `daughter` plumbed.
-5. **Composition.** Split across two sub-milestones:
-   - **M5a:** `compose`, `share=[...]`, `requires`, per-part scoped
-     state. Parametric programs via plain factory functions that
-     close over parameters. `examples/morphogenesis.py` refactored
-     to its CCL-mirroring composed form.
-   - **M5b:** `Composed` class-style sugar, `Program.with_args(...)`,
-     `WorldProgram` + `set_main(...)` (and the periodic re-seed
-     `main()` loop in `morphogenesis.gro`).
-6. **Polish.** Reporters, error overlay path for Python errors, docs,
-   `.py` examples mirroring the `.gro` ones. Bump version, build DMG.
+### Correctness / robustness — load-bearing
 
-Each milestone leaves master untouched and `python-embedding` in a
-state where running gro on a `.gro` file still works. We'll know we're
-done when every `examples/*.gro` has a `.py` twin and both produce
-visually identical simulations.
+- **Crash-on-stop investigation.** A user-reported crash after
+  selecting a cell + stopping the sim hasn't reproduced, but a
+  crash silently dropping the lab is unacceptable. Add a crash
+  logger or wire up the macOS report-on-crash path so the next
+  occurrence captures a stack.
+- **Cell-lifecycle edge audit.** Cell dying mid-divide; reload
+  while a Python rule is mid-execution; `pending_prog_deletions`
+  under unusual conditions; whether a cell's Python program can
+  hold a reference that outlives the World.
+- **Error-recovery story.** After `set_stop_flag(true)` from a
+  Python rule error, document and test the minimum sequence to
+  return to a clean state (Reload? close + reopen? edit + reload?).
+- **`PythonRuntime` thread safety.** The static `current_cell_`
+  pointer is single-window by convention. If multi-window or
+  parallel-sim ever lands, the pointer becomes a race. Document
+  the constraint or push to a thread-local.
+
+### Testing — load-bearing for production
+
+- **Headless test runner** that loads each `examples/*.py`, ticks
+  for N steps, asserts no Python exception. Catches the class of
+  regression we kept finding by "open and watch".
+- **Unit tests** for `compose()`, `with_args`, the strict-mode
+  validators, `_PartScope` proxy. They were tested manually
+  mid-session; a CI-runnable suite freezes the behavior.
+
+### Build / distribution — load-bearing for shipping
+
+- **DMG staging.** Verify `cmake --build build --target package`
+  stages `gro.app + examples/ + include/ + python/` at the DMG top
+  level, not just `gro.app` alone. Customize CPack DMG config
+  otherwise.
+- **Code signing + notarization.** Ad-hoc signing works locally;
+  anyone outside the lab will hit Gatekeeper. Decide if v1.1.0 is
+  lab-internal or share-able; the latter needs real signing +
+  notarization.
+- **Universal binary.** Currently arm64 only; Intel Macs need a
+  rebuild on x86_64. Decide whether to support.
+- **Python 3.13 hard dependency.** `CMakeLists.txt` pins to
+  Homebrew's `python@3.13`; minor-version bumps shift the path.
+  Either document the dep or relax to "Python 3.10+".
+
+### UX
+
+- **Long traceback rendering** in the bottom console with the
+  `<pre>` wrapper — verify on a deliberately deep stack.
+- **Reload after error.** Does the stale traceback clear, or stick
+  in the console?
+- **Selection message persistence.** When the user clicks away
+  from a selected cell, the channel-2 quadrant message should
+  clear; verify it does.
+
+### Documentation
+
+- **User-facing Python tutorial** ("your first .py gro program in
+  60 seconds"). This DESIGN doc is internal; users need an entry
+  point.
+- **API reference.** Either Sphinx/MkDocs site from the docstrings
+  or a single user-guide markdown.
+- **Migration note** for CCL-`.gro` users moving to `.py`: what
+  changes, what doesn't.
+
+### Known gaps / debt
+
+- `examples/maptocells.py` port pending (needs a `for_each_cell`-
+  style iterate-over-cells primitive).
+- `examples/chemotaxis.gro` has uncommitted user edits
+  (`run(180)`/`tumble(180)`) — decide whether they go into v1.1.0
+  or revert.
+- `Cell::run`/`Cell::tumble` are concrete on `Cell` so Yeast
+  inherits them silently. Either virtualize with a no-op on Yeast,
+  or document as "physics works on any cell type".
+- Batch reporter setter and per-tick caching of
+  `just_divided`/`daughter` — only after a profile points there.
+
+### API stability — fix-before-v1.1.0-tag
+
+- `_core.current_*` naming on the C++ embedded API: stable for
+  any future C++ extensions or alternate Python frontends.
+- `Preserved(value)` vs alternatives (`Pinned`, `KeepAcrossDivision`)
+  — cheaper to bikeshed before a tagged release than after.
+- `set_main(...)` strictness: today rejects bare `Program`
+  subclasses. Lock in (currently right call) or loosen.
+
+### Ship steps (in order, once the above is settled)
+
+1. Address any load-bearing items judged blocking.
+2. Final DESIGN.md / README / CHANGELOG pass.
+3. `git tag v1.1.0`; build + verify DMG.
+4. Merge `python-embedding` → `master` (probably a merge commit,
+   not squash, to preserve the per-milestone history).
+5. Update GitHub release notes from CHANGELOG.md.
