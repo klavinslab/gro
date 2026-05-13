@@ -20,6 +20,7 @@
 #include <QtGui>
 #include <QSizePolicy>
 #include <QFileDialog>
+#include <QSettings>
 #include "gui.h"
 #include "ui_gui.h"
 #include <unistd.h>
@@ -33,6 +34,15 @@ Gui::Gui(int ac, char **av, QWidget *parent) :
     ui(new Ui::Gui),
     growidget(ac,av)
 {
+
+    // Restore the file dialog's last-browsed directory from the
+    // previous session. Falls back to whatever cwd the binary
+    // launched in (the project root in dev; the install dir in
+    // production) when there's no saved value.
+    QString lastDir = QSettings().value("lastOpenDir").toString();
+    if (!lastDir.isEmpty() && QDir(lastDir).exists()) {
+        directory = QDir(lastDir);
+    }
 
     ui->setupUi(this);
 
@@ -107,6 +117,11 @@ void Gui::open ( void ) {
     if ( !fileName.isNull() ) {
       growidget.open ( fileName );
       setWindowTitle( QString("gro: ") + fileName );
+      // Remember the file's parent so the next File->Open and the
+      // dump/snapshot save dialogs start there. Persisted via
+      // QSettings so it survives a restart.
+      directory = QFileInfo(fileName).absoluteDir();
+      QSettings().setValue("lastOpenDir", directory.absolutePath());
     } else {
         console.insertHtml ( QString("Error opening ") + fileName + "<br />"  );
     }
