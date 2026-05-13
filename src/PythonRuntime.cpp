@@ -57,6 +57,28 @@ struct CellScope {
     }
 };
 
+// Route a pybind11 Python error to the gro bottom console (via
+// World::emit_message -> Qt signal -> Gui::displayMessage), then
+// halt the simulation. Deduplicated so a rule that raises every
+// tick within the same update pass doesn't flood the console
+// before set_stop_flag actually takes effect.
+static void emit_python_error(const std::string & where,
+                              py::error_already_set & e) {
+    std::string text = "Python error in " + where + ":\n" + e.what();
+    std::cerr << text << std::endl;
+    static std::string last;
+    if (text == last) return;
+    last = text;
+    if (World * w = PythonRuntime::instance().getCurrentWorld()) {
+        // <pre> preserves the traceback's whitespace + line breaks
+        // in the QTextEdit console; without it the message ends up
+        // on a single wrapped line.
+        std::string html = "<pre>" + text + "</pre>";
+        w->emit_message(html, false);
+        w->set_stop_flag(true);
+    }
+}
+
 // Adapter that lets a CCL Cell drive a Python Program. EColi::update
 // calls program->update(world, this); we forward that to the Python
 // instance's _tick() with the cell installed as the current_cell.
@@ -85,10 +107,8 @@ public:
         try {
             instance_.attr("_tick")();
         } catch (py::error_already_set & e) {
-            // Logged to stderr; doesn't stop the simulation. The
-            // overlay-on-rule-error path is a future improvement.
-            std::cerr << "Python rule error in cell " << c->get_id() << ":\n"
-                      << e.what() << std::endl;
+            emit_python_error("cell " + std::to_string(c->get_id())
+                              + " rule", e);
         }
         // Clear the division built-ins after the tick. EColi::divide
         // set them; rules read them via self.just_divided /
@@ -112,7 +132,7 @@ public:
             py::object new_instance = instance_.attr("_split")(mother_frac);
             return new PythonMicroProgram(new_instance);
         } catch (py::error_already_set & e) {
-            std::cerr << "Python program split error: " << e.what() << std::endl;
+            emit_python_error("cell division", e);
             return nullptr;
         }
     }
@@ -143,7 +163,7 @@ public:
         try {
             instance_.attr("_tick")();
         } catch (py::error_already_set & e) {
-            std::cerr << "Python main() rule error:\n" << e.what() << std::endl;
+            emit_python_error("main()", e);
         }
     }
 

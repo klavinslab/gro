@@ -88,7 +88,7 @@ k1 = 100 * alpha
 P2 = compose(make_gfp(k1, 0.001, 0), Report)
 
 # PROGRAM 3: same as P2 but also writes data to stdout every 5*dt.
-P3 = compose(make_gfp(k1, 0.001, 0), Report, output(5 * 0.1))
+P3 = compose(make_gfp(k1, 0.001, 0), Report, output(5 * dt()))
 
 
 ecoli(x=0, y=0, program=P1)  # try P2 or P3 here too
