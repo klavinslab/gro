@@ -217,17 +217,17 @@ PYBIND11_EMBEDDED_MODULE(_core, m) {
     }, py::arg("handle"), py::arg("x"), py::arg("y"));
 
     // ---- cell-local signal API (uses current_cell context) ----
-    m.def("emit_signal_cell", [](int handle, double amount) {
+    m.def("current_emit_signal", [](int handle, double amount) {
         world()->emit_signal(current_cell(), handle,
                              static_cast<float>(amount));
     }, py::arg("handle"), py::arg("amount"));
 
-    m.def("absorb_signal_cell", [](int handle, double amount) {
+    m.def("current_absorb_signal", [](int handle, double amount) {
         world()->absorb_signal(current_cell(), handle,
                                static_cast<float>(amount));
     }, py::arg("handle"), py::arg("amount"));
 
-    m.def("get_signal_cell", [](int handle) -> double {
+    m.def("current_get_signal", [](int handle) -> double {
         return world()->get_signal_value(current_cell(), handle);
     }, py::arg("handle"));
 
@@ -264,18 +264,18 @@ PYBIND11_EMBEDDED_MODULE(_core, m) {
     // Marks the current cell for removal at the end of this tick.
     // World::update sweeps marked cells out of the population after
     // the per-cell loop finishes. Same mechanism CCL's die() uses.
-    m.def("die_cell", []() { current_cell()->mark_for_death(); });
+    m.def("current_die", []() { current_cell()->mark_for_death(); });
 
     // ---- force-divide ----
     // Asks the current cell to divide on its next divide() check
     // regardless of size. Mirrors CCL's divide(): used inside rules
     // that want to override the size-mean / size-variance machinery.
-    m.def("force_divide_cell", []() { current_cell()->force_divide(); });
+    m.def("current_force_divide", []() { current_cell()->force_divide(); });
 
     // ---- motility: run / tumble ----
     // Same Cell methods CCL's run()/tumble() call (Gro.cpp:717).
-    m.def("run_cell",    [](double dvel) { current_cell()->run   (static_cast<float>(dvel)); }, py::arg("dvel"));
-    m.def("tumble_cell", [](double vel)  { current_cell()->tumble(static_cast<float>(vel));  }, py::arg("vel"));
+    m.def("current_run",    [](double dvel) { current_cell()->run   (static_cast<float>(dvel)); }, py::arg("dvel"));
+    m.def("current_tumble", [](double vel)  { current_cell()->tumble(static_cast<float>(vel));  }, py::arg("vel"));
 
     // ---- selected ----
     // True while the user has the current cell selected in the GUI.

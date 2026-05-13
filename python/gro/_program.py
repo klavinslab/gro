@@ -384,29 +384,29 @@ class Program(metaclass=_ProgramMeta):
 
     def die(self):
         """Mark this cell for removal at the end of the current tick."""
-        _core.die_cell()
+        _core.current_die()
 
     def divide(self):
         """Force-divide on the next divide check, bypassing the
         size-mean/variance machinery. Mirrors CCL's `divide()`."""
-        _core.force_divide_cell()
+        _core.current_force_divide()
 
     def run(self, dvel):
         """Thrust forward toward velocity `dvel`; damp angular rotation."""
-        _core.run_cell(dvel)
+        _core.current_run(dvel)
 
     def tumble(self, vel):
         """Apply torque `vel`; damp translation. Pair with `run()`."""
-        _core.tumble_cell(vel)
+        _core.current_tumble(vel)
 
     def emit_signal(self, handle, amount):
-        _core.emit_signal_cell(handle, amount)
+        _core.current_emit_signal(handle, amount)
 
     def absorb_signal(self, handle, amount):
-        _core.absorb_signal_cell(handle, amount)
+        _core.current_absorb_signal(handle, amount)
 
     def get_signal(self, handle):
-        return _core.get_signal_cell(handle)
+        return _core.current_get_signal(handle)
 
     @property
     def volume(self): return _core.current_volume()
