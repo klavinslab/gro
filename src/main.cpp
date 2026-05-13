@@ -32,14 +32,30 @@ int main(int argc, char *argv[])
     qt_set_sequence_auto_mnemonic(true);
 
     QApplication a(argc, argv);
-    // include/, examples/, and python/ live alongside gro.app (not
-    // inside it). At runtime we chdir to the parent of gro.app so
-    // relative lookups for `include/gro.gro`, the user's `.py`
-    // imports of `gro`, and File->Open's default location all
-    // resolve to those sibling directories. Build-tree layout
-    // mirrors this via symlinks created by CMake.
-    chdir((QCoreApplication::applicationDirPath() + "/../../..")
-              .toLocal8Bit().constData());
+    // QSettings uses these to pick its on-disk location. macOS
+    // resolves to ~/Library/Preferences/edu.washington.klavinslab.gro.plist;
+    // used today by Gui::open to remember the last-browsed directory
+    // across launches.
+    QCoreApplication::setOrganizationName  ("KlavinsLab");
+    QCoreApplication::setOrganizationDomain("klavinslab.washington.edu");
+    QCoreApplication::setApplicationName   ("gro");
+    // include/, examples/, and python/ are siblings of gro.app at
+    // install time. In the dev build they live two more levels up
+    // (build/gro.app's grandparent = the project root). Rather than
+    // hard-coding either path, walk up from MacOS/ until we find a
+    // directory containing all three. Production install dirs and
+    // the source tree both satisfy the test, so the same binary
+    // works in both contexts without extra symlinks.
+    {
+        QDir d = QDir(QCoreApplication::applicationDirPath());
+        for (int i = 0; i < 6; i++) {
+            if (d.exists("include") && d.exists("examples") && d.exists("python")) {
+                QDir::setCurrent(d.absolutePath());
+                break;
+            }
+            if (!d.cdUp()) break;
+        }
+    }
     Q_INIT_RESOURCE(icons);
     Gui w(argc,argv);
     w.show();
