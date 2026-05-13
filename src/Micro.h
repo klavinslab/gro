@@ -285,6 +285,19 @@ class World {
   // would invalidate it, so we ignore the write.
   void dispatch_set_param ( Cell * cc, const std::string & name, float val );
 
+  // Returns a named world statistic (currently just "pop_size";
+  // unknown names yield 0 with a stderr warning). Shared by CCL's
+  // stats() and the Python binding.
+  double stats ( const std::string & name );
+
+  // Build a Reaction from raw signal-handle lists and a rate, then
+  // register it. Validates handles against num_signals(). Shared by
+  // CCL's reaction() and the Python binding. (The single-Reaction
+  // overload is declared lower down -- pre-existing.)
+  void add_reaction ( const std::vector<int> & reactants,
+                      const std::vector<int> & products,
+                      float rate );
+
   inline void set_param ( std::string str, float val ) { parameters[str] = val;
     //
     //for( std::map<std::string,float>::iterator ii = parameters.begin(); ii != parameters.end(); ++ii ) {

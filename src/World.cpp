@@ -89,6 +89,39 @@ void World::drain_pending_prog_deletions ( void ) {
     pending_prog_deletions.clear();
 }
 
+double World::stats ( const std::string & name ) {
+
+    if ( name == "pop_size" ) return get_pop_size();
+
+    // Throwing rather than silently returning 0 -- a typo in
+    // stats("popsize") would otherwise fire game.py's `== 0` rule
+    // on every tick. pybind11 surfaces std::string throws as Python
+    // RuntimeError; CCL's eval loop will fail loudly the same way.
+    throw std::string ( "unknown statistic '" + name + "' in call to stats()" );
+
+}
+
+void World::add_reaction ( const std::vector<int> & reactants,
+                            const std::vector<int> & products,
+                            float rate ) {
+
+    Reaction r ( rate );
+
+    for ( int idx : reactants ) {
+        if ( idx < 0 || idx >= num_signals() )
+            throw std::string ( "Reaction refers to a non-existant reactant." );
+        r.add_reactant ( idx );
+    }
+    for ( int idx : products ) {
+        if ( idx < 0 || idx >= num_signals() )
+            throw std::string ( "Reaction refers to a non-existant product." );
+        r.add_product ( idx );
+    }
+
+    add_reaction ( r );
+
+}
+
 void World::dispatch_set_param ( Cell * cc, const std::string & name, float val ) {
     if ( cc != NULL ) {
         cc->set_param ( name, val );
@@ -511,6 +544,13 @@ void World::absorb_signal ( Cell * c, int i, float ds ) {
 
 std::vector< std::vector<float> > * World::get_signal_matrix ( int i ) {
 
+  // Pointer is into the Signal's internal storage -- DO NOT delete
+  // it at the call site. The bounds check here means both CCL and
+  // Python bindings can forward without re-checking, and an
+  // out-of-range CCL call now raises instead of segfaulting in the
+  // signal_list[i] indexing.
+  if ( i < 0 || i >= num_signals() )
+      throw std::string ( "get_signal_matrix: invalid signal handle" );
   return signal_list[i]->get_signal_matrix();
 
 }

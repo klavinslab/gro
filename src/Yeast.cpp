@@ -54,11 +54,11 @@ void Yeast::render ( Theme * theme, GroPainter * painter  ) {
 
   } else if ( is_bud == false && bud != NULL ) { // cell is budding
 
-    float vol = volume + bud->get_volume();
+    vol = volume + bud->get_volume();
 
   } else if ( is_bud ) { // cell is a bud
 
-    float vol = volume + parent_cell->get_volume();
+    vol = volume + parent_cell->get_volume();
 
   }
 
@@ -103,7 +103,7 @@ void Yeast::update ( void ) {
       float theta = 6.28*frand(), r = radius();
       bud = new Yeast ( world, get_x()+(r+1)*sin(theta), get_y()+(r+1)*cos(theta), 0.78, rad_to_vol ( 1.0 ), true );
       bud->set_parent_cell ( this );
-      cord = cpDampedSpringNew ( get_shape()->body, bud->get_shape()->body, cpv(0,0), cpv(0,0), r+0.1, 10, 10 );
+      cord = cpDampedSpringNew ( cpShapeGetBody(get_shape()), cpShapeGetBody(bud->get_shape()), cpv(0,0), cpv(0,0), r+0.1, 10, 10 );
       cpSpaceAddConstraint ( space, cord );
     }
 

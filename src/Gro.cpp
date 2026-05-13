@@ -166,29 +166,18 @@ Value * new_signal ( std::list<Value *> * args, Scope * s ) {
 
 Value * add_reaction ( std::list<Value *> * args, Scope * s ) {
 
-    World * world = current_gro_program->get_world();
-
-    // args are: reactants, products, rate
     std::list<Value *>::iterator i = args->begin();
     Value * R = *i; i++;
     Value * P = *i; i++;
     Value * k = *i;
 
-    Reaction r (k->num_value());
+    std::vector<int> reactants, products;
+    for ( auto j = R->list_value()->begin(); j != R->list_value()->end(); j++ )
+        reactants.push_back ( (*j)->int_value() );
+    for ( auto j = P->list_value()->begin(); j != P->list_value()->end(); j++ )
+        products .push_back ( (*j)->int_value() );
 
-    for ( i=R->list_value()->begin(); i != R->list_value()->end(); i++ ) {
-        if ( (*i)->int_value() < 0 || (*i)->int_value() >= world->num_signals() )
-            throw std::string ( "Reaction refers to a non-existant reactant." );
-        r.add_reactant( (*i)->int_value() );
-    }
-
-    for ( i=P->list_value()->begin(); i != P->list_value()->end(); i++ ) {
-        if ( (*i)->int_value() < 0 || (*i)->int_value() >= world->num_signals() )
-            throw std::string ( "Reaction refers to a non-existant product." );
-        r.add_product( (*i)->int_value() );
-    }
-
-    world->add_reaction(r);
+    current_gro_program->get_world()->add_reaction ( reactants, products, k->num_value() );
 
     return new Value ( Value::UNIT );
 
@@ -424,18 +413,8 @@ Value * set_param ( std::list<Value *> * args, Scope * s ) {
 
 Value * world_stats ( std::list<Value *> * args, Scope * s ) {
 
-  World * world = current_gro_program->get_world();
   std::list<Value *>::iterator i = args->begin();
-
-  Value * name = *i;
-
-  if ( name->string_value() == "pop_size" ) {
-
-    return new Value ( world->get_pop_size() );
-    
-  } else printf ( "unknown statistic %s in call to 'stat'\n", name->string_value().c_str() );
-
-  return new Value ( 0 );
+  return new Value ( current_gro_program->get_world()->stats ( (*i)->string_value() ) );
 
 }
 

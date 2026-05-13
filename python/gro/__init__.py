@@ -32,11 +32,15 @@ from _core import (
     snapshot,
     stop,
     start,
+    stats,
+    reaction,
+    get_signal_matrix,
     set_chemostat_mode as _core_chemostat_mode,
     add_barrier,
     set_signal_rect,
 )
 from _core import ecoli as _core_ecoli
+from _core import yeast as _core_yeast
 
 
 def chemostat(on=True):
@@ -81,6 +85,14 @@ def ecoli(x=0.0, y=0.0, theta=0.0, volume=None, program=None):
     if program is not None and isinstance(program, type):
         program = program()
     _core_ecoli(x=x, y=y, theta=theta, volume=volume, program=program)
+
+
+def yeast(x=0.0, y=0.0, theta=0.0, volume=None, program=None):
+    """Spawn a yeast cell. Same call shape as `ecoli(...)`; volume
+    defaults to 1.0 if not specified."""
+    if program is not None and isinstance(program, type):
+        program = program()
+    _core_yeast(x=x, y=y, theta=theta, volume=volume, program=program)
 
 
 # Cell-local signal API (`emit_signal`, `absorb_signal`, `get_signal`)
@@ -181,6 +193,7 @@ def _setup_world():
 __all__ = [
     # Spawning
     "ecoli",
+    "yeast",
     # Programs & rules
     "Program",
     "State",
@@ -205,6 +218,9 @@ __all__ = [
     "time",
     "message",
     "clear_messages",
+    "stats",
+    "reaction",
+    "get_signal_matrix",
     "chemostat",
     "barrier",
     "set_signal_rect",

@@ -108,6 +108,7 @@ qt_add_executable(gro MACOSX_BUNDLE
     src/Utility.cpp
     src/World.cpp
     src/EColi.cpp
+    src/Yeast.cpp
     src/Gro.cpp
     src/GroPainter.cpp
     src/Cell.cpp

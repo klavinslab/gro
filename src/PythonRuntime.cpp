@@ -11,6 +11,7 @@
 #include "Micro.h"
 #include "Cell.h"
 #include "EColi.h"
+#include "Yeast.h"
 #include "Theme.h"
 #include "Defines.h"
 
@@ -338,32 +339,52 @@ PYBIND11_EMBEDDED_MODULE(_core, m) {
           py::arg("seed"));
 
     // ---- spawning ----
-    m.def("ecoli",
-          [](double x, double y, double theta, py::object volume,
-             py::object program) {
+    // Attach a Python program (if any) to a freshly-constructed
+    // cell, register it with the world, and run its setup() under
+    // a CellScope so set_param calls in setup land on the cell-
+    // local parameter map. Used by ecoli() and yeast() and any
+    // future cell-spawn binding.
+    auto spawn_python_cell = [](Cell * c, py::object program) {
         World * w = world();
-        double v = volume.is_none()
-                       ? DEFAULT_ECOLI_INIT_SIZE
-                       : volume.cast<double>();
-        EColi * c = new EColi(w,
-                              static_cast<float>(x),
-                              static_cast<float>(y),
-                              static_cast<float>(theta),
-                              static_cast<float>(v));
         if (!program.is_none()) {
-            // The Python side passes a Program *instance* (created by
-            // the gro.ecoli wrapper). Wrap it in the C++ adapter so
-            // EColi::update can dispatch into it each tick.
             c->set_prog(new PythonMicroProgram(program));
         }
         w->add_cell(c);
-        // Run setup() with current_cell set, mirroring CCL's
-        // new_ecoli which calls prog->init under a current_cell
-        // context so any set_param calls in init are cell-local.
         if (!program.is_none()) {
             CellScope scope(c);
             program.attr("setup")();
         }
+    };
+
+    m.def("ecoli",
+          [spawn_python_cell](double x, double y, double theta,
+                              py::object volume, py::object program) {
+        double v = volume.is_none() ? DEFAULT_ECOLI_INIT_SIZE
+                                    : volume.cast<double>();
+        spawn_python_cell(new EColi(world(),
+                                    static_cast<float>(x),
+                                    static_cast<float>(y),
+                                    static_cast<float>(theta),
+                                    static_cast<float>(v)),
+                          program);
+    },
+          py::arg("x")       = 0.0,
+          py::arg("y")       = 0.0,
+          py::arg("theta")   = 0.0,
+          py::arg("volume")  = py::none(),
+          py::arg("program") = py::none());
+
+    m.def("yeast",
+          [spawn_python_cell](double x, double y, double theta,
+                              py::object volume, py::object program) {
+        double v = volume.is_none() ? 1.0 : volume.cast<double>();
+        spawn_python_cell(new Yeast(world(),
+                                    static_cast<float>(x),
+                                    static_cast<float>(y),
+                                    static_cast<float>(theta),
+                                    static_cast<float>(v),
+                                    false),
+                          program);
     },
           py::arg("x")       = 0.0,
           py::arg("y")       = 0.0,
@@ -374,6 +395,30 @@ PYBIND11_EMBEDDED_MODULE(_core, m) {
     // ---- time / dt ----
     m.def("dt",   []() -> double { return world()->get_sim_dt(); });
     m.def("time", []() -> double { return world()->get_time();  });
+
+    // ---- stats / reaction ----
+    // World-level statistics by name (only "pop_size" today).
+    m.def("stats", [](const std::string & name) -> double {
+        return world()->stats(name);
+    }, py::arg("name"));
+
+    // Register a reactant->product signal reaction at the given rate.
+    // Same validation CCL's reaction() does, in shared World code.
+    m.def("reaction",
+          [](const std::vector<int> & reactants,
+             const std::vector<int> & products, double rate) {
+        world()->add_reaction(reactants, products, static_cast<float>(rate));
+    }, py::arg("reactants"), py::arg("products"), py::arg("rate"));
+
+    // Return a 2D matrix of a signal's grid values. World owns the
+    // backing store and bounds-checks the handle; we copy and return
+    // by value. NOTE: this copies the entire grid into a Python
+    // list[list[float]] -- ~25MB for an 800x800 grid. Don't call
+    // per-tick; intended for snapshot-style dumps. A numpy view via
+    // py::array_t would be the right hot-path interface if needed.
+    m.def("get_signal_matrix", [](int handle) {
+        return *world()->get_signal_matrix(handle);
+    }, py::arg("handle"));
 
     // ---- theme ----
     m.def("set_theme", [](
