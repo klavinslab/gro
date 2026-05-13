@@ -275,6 +275,13 @@ PYBIND11_EMBEDDED_MODULE(_core, m) {
         world()->message(channel, text);
     }, py::arg("channel"), py::arg("text"));
 
+    // Clear all messages on a channel. Typically called right before
+    // `message(channel, ...)` from a periodic world rule so the
+    // console shows only the current value, not the history.
+    m.def("clear_messages", [](int channel) {
+        world()->clear_messages(channel);
+    }, py::arg("channel"));
+
     // ---- world program (`main()` analogue) ----
     // Installs a Python program instance as the world's per-tick
     // main program. The World takes ownership (see
@@ -296,6 +303,44 @@ PYBIND11_EMBEDDED_MODULE(_core, m) {
     // Restart the world: kill all cells, zero signals, rebuild the
     // chipmunk space. Equivalent to CCL's reset().
     m.def("reset_world", []() { world()->restart(); });
+
+    // ---- environment / runtime control ----
+    // Toggle chemostat-mode boundary walls.
+    m.def("set_chemostat_mode", [](bool on) { world()->set_chemostat_mode(on); },
+          py::arg("on"));
+
+    // Add a static wall between two world-coordinate points.
+    m.def("add_barrier", [](double x1, double y1, double x2, double y2) {
+        world()->add_barrier(static_cast<float>(x1), static_cast<float>(y1),
+                             static_cast<float>(x2), static_cast<float>(y2));
+    }, py::arg("x1"), py::arg("y1"), py::arg("x2"), py::arg("y2"));
+
+    // Set a signal value across a rectangle (corners of the rect).
+    m.def("set_signal_rect",
+          [](int handle, double x1, double y1, double x2, double y2, double value) {
+        World * w = world();
+        if (handle < 0 || handle >= w->num_signals())
+            throw std::runtime_error("set_signal_rect: invalid handle");
+        w->set_signal_rect(handle,
+                           static_cast<float>(x1), static_cast<float>(y1),
+                           static_cast<float>(x2), static_cast<float>(y2),
+                           static_cast<float>(value));
+    }, py::arg("handle"), py::arg("x1"), py::arg("y1"),
+       py::arg("x2"), py::arg("y2"), py::arg("value"));
+
+    // Write the current scene to a PNG. Returns success.
+    m.def("snapshot", [](const std::string & path) -> bool {
+        return world()->snapshot(path.c_str());
+    }, py::arg("path"));
+
+    // Pause / resume simulation ticking. start() clears the stop
+    // flag; stop() sets it. Mirrors CCL's stop()/start().
+    m.def("stop",  []() { world()->set_stop_flag(true);  });
+    m.def("start", []() { world()->set_stop_flag(false); });
+
+    // Seed the global RNG. Mirrors CCL's srand().
+    m.def("srand", [](unsigned int seed) { std::srand(seed); },
+          py::arg("seed"));
 
     // ---- spawning ----
     m.def("ecoli",

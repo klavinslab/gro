@@ -26,9 +26,28 @@ from _core import (
     dt,
     time,
     rand,
+    srand,
     message,
+    clear_messages,
+    snapshot,
+    stop,
+    start,
+    set_chemostat_mode as _core_chemostat_mode,
+    add_barrier,
+    set_signal_rect,
 )
 from _core import ecoli as _core_ecoli
+
+
+def chemostat(on=True):
+    """Toggle chemostat-mode boundary walls. Equivalent to CCL's
+    `chemostat()` (no arg = enable) and `chemostat(false)` (disable)."""
+    _core_chemostat_mode(bool(on))
+
+
+def barrier(x1, y1, x2, y2):
+    """Add a static wall between (x1, y1) and (x2, y2)."""
+    add_barrier(x1, y1, x2, y2)
 
 from gro._program import (
     Program,
@@ -185,6 +204,14 @@ __all__ = [
     "dt",
     "time",
     "message",
+    "clear_messages",
+    "chemostat",
+    "barrier",
+    "set_signal_rect",
+    "snapshot",
+    "stop",
+    "start",
+    "srand",
     # Themes
     "set_theme",
     "bright_theme",
