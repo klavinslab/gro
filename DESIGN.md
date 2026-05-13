@@ -174,13 +174,16 @@ def relay(self):
 The predicate passed to `@when(...)` is **AST-inspected at class
 definition time**.
 
-The current implementation enforces the minimal-safety subset:
+The current implementation enforces these foot-gun rejections:
 
-- **Forbidden**: the walrus operator (`:=`) inside the lambda — Python
-  lambdas can't syntactically contain `=` or `+=`, so walrus is the
-  only in-lambda assignment form.
-- **Forbidden**: nested `Lambda` inside the guard (move the helper to
-  a named method or module function).
+- **Walrus operator** (`:=`) inside the lambda — Python lambdas can't
+  syntactically contain `=` or `+=`, so walrus is the only in-lambda
+  assignment form.
+- **Nested `Lambda`** inside the guard (move the helper to a named
+  method or module function).
+- **`Yield` / `YieldFrom`** — predicates run synchronously per-tick
+  and aren't generators.
+- **`Await`** — rules aren't coroutines.
 
 A violation raises `GroLoadError` at class-creation time. This catches
 the obvious foot-guns; the user still has the freedom to call
@@ -198,13 +201,17 @@ A fuller sandbox is planned for a follow-up milestone:
   `get_signal`, `get_param`, `rate`, `min`, `max`, `abs`, `len`,
   `math.*` (the safe subset).
 - Forbidden in the fuller form: calls to anything else (no `print`,
-  no user functions, no `self.emit_signal`, etc.), `Yield`,
-  comprehensions with side-effecty generators.
+  no user functions, no `self.emit_signal`, etc.) and comprehensions
+  with side-effecty generators.
 
 The full sandbox would treat both `gro.foo` (qualified) and `foo`
 (post `from gro import *`) identically by resolving names against
 `gro.__all__`, and report file/line/column on violation — giving the
 user the same property CCL gave them: guards can't have side effects.
+Today's blocker for shipping it is that the natural Python idiom for
+rate-style guards (`rand(N) < k * dt() * N`) calls functions CCL
+hides inside its `rate(k)` keyword; landing the full sandbox cleanly
+requires exposing a `rate(k) -> bool` callable for in-predicate use.
 
 Rule body restrictions are looser — bodies can call anything in the
 `gro` API, mutate `self.state.*`, etc. The body's only structural
@@ -346,16 +353,30 @@ Shared cells (from `share=[...]`) divide exactly once.
 
 ### Strict mode
 
-On by default. Enforced at class-creation time by `Program.__init_subclass__`:
+On by default. Enforced at class-creation time by the `_ProgramMeta`
+metaclass:
 
-- `state` must be a `State(...)` (no missing schema).
-- No instance attributes can be set on `self` outside of:
-  - the declared `state` fields,
-  - simulator-injected attributes (`volume`, `id`, `just_divided`,
-    `daughter`, `selected`, plus the reporter aliases `gfp`/`rfp`/
-    `cfp`/`yfp`).
-- Every `@when(...)` predicate passes the AST sandbox.
-- `requires` and `share` lists, if present, reference real field names.
+- **State must be a `State(...)`.** Assigning anything else (`state =
+  {"t": 0}`, `state = SimpleNamespace(t=0)`, ...) raises
+  `GroLoadError` immediately, instead of failing mysteriously when
+  the simulator tries to introspect it.
+- **Method bodies may only write `self.<name>`** where name is a
+  reporter setter (`gfp`, `rfp`, `yfp`, `cfp`) or starts with `_`
+  (private/internal). Anything else — `self.tagged = True`,
+  `self.counter += 1` — is rejected with a "did you mean
+  self.state.tagged?" hint. The check is an AST walk of each
+  decorated rule method plus any user-defined `setup`, so the
+  typo fails at load time instead of silently inventing an
+  instance attribute. Writing through `self.state.X = ...` is
+  always fine.
+- **Every `@when(...)` predicate passes the AST sandbox** (walrus,
+  nested lambda, `yield`, `await` rejected; see above).
+- **`requires` lists, if present, must reference names in `share`**
+  (transitively: in some part's `State`).
+- **`set_main(...)` requires a `WorldProgram` subclass**, not a
+  bare `Program`. Cell-context built-ins like `self.volume` and
+  `self.emit_signal` make no sense at world scope; the
+  `WorldProgram` marker makes that boundary explicit.
 
 Method roles inside a `Program` subclass:
 
@@ -366,20 +387,17 @@ Method roles inside a `Program` subclass:
   the simulator fires each tick.
 - **Any other method** — plain helper. Not a rule. Not called
   automatically. Use it however you like; rules and `setup()` can
-  invoke it.
+  invoke it. Helper methods are NOT body-validated (escape hatch).
 - Dunder methods (`__init__`, `__repr__`, …) are allowed but rarely
   needed; the framework manages instance lifecycle.
 
 Literal mutable defaults in `State(...)` (`list = []`, `dict = {}`, …)
 are rejected at class creation with an error that points the user at
 `field(factory)` — see the *State schema* section for the rationale.
-`__slots__` on `Program` makes accidental attribute creation raise
-`AttributeError`.
 
-Permissive mode (`set_strict(False)` or `class P(Program, strict=False)`)
-opts a single class out: warns instead of erroring on the above,
-deep-copies non-state attributes on division with a warning. Intended
-for quick scripts, not production code.
+Permissive mode (a `set_strict(False)` toggle, or class-level
+`strict=False` keyword) is **not yet implemented**. Today strict mode
+is unconditional.
 
 ### Cell built-ins
 
@@ -431,6 +449,10 @@ set_main(Main)
 dispatch, `setup()`, `compose(...)` for combining several into one.
 Multiple guarded commands are dispatched by the same scheduler that
 runs per-cell rules — no `if`-chains in the user's tick code.
+
+`set_main(...)` enforces that its argument is a `WorldProgram`
+subclass (not a bare `Program`); passing the wrong kind of class
+raises `GroLoadError` at load time. See *Strict mode* above.
 
 Differences from `Program`:
 
