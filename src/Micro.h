@@ -276,6 +276,15 @@ class World {
   inline void  set_chip_dt ( float x ) { chip_dt = x; }
   inline float get_chip_dt ( void ) { return chip_dt; }
 
+  // Dispatch a `set_param(name, val)` from a CCL or Python rule:
+  // if `cc` is non-null we're inside a cell context, so the value
+  // goes to the cell's local param map and its derived quantities
+  // are recomputed; otherwise we're at world scope. World-scope
+  // writes to the three signal-grid-sizing params are gated --
+  // once any signal has been declared, changing the grid size
+  // would invalidate it, so we ignore the write.
+  void dispatch_set_param ( Cell * cc, const std::string & name, float val );
+
   inline void set_param ( std::string str, float val ) { parameters[str] = val;
     //
     //for( std::map<std::string,float>::iterator ii = parameters.begin(); ii != parameters.end(); ++ii ) {

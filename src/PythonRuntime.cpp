@@ -162,21 +162,9 @@ PYBIND11_EMBEDDED_MODULE(_core, m) {
     // World. This is how `Leader.setup()` can lower its own growth
     // rate without affecting other cells.
     m.def("set_param", [](const std::string & name, double value) {
-        Cell * cc = PythonRuntime::instance().getCurrentCell();
-        if (cc) {
-            cc->set_param(name, static_cast<float>(value));
-            cc->compute_parameter_derivatives();
-        } else {
-            World * w = world();
-            // CCL refuses to change signal grid sizes after any
-            // signal has been declared; mirror that guard.
-            if (w->num_signals() == 0 ||
-                (name != "signal_grid_width" &&
-                 name != "signal_grid_height" &&
-                 name != "signal_element_size")) {
-                w->set_param(name, static_cast<float>(value));
-            }
-        }
+        world()->dispatch_set_param(
+            PythonRuntime::instance().getCurrentCell(),
+            name, static_cast<float>(value));
     }, py::arg("name"), py::arg("value"));
 
     m.def("get_param", [](const std::string & name) -> double {
@@ -263,6 +251,11 @@ PYBIND11_EMBEDDED_MODULE(_core, m) {
     // that want to override the size-mean / size-variance machinery.
     m.def("force_divide_cell", []() { current_cell()->force_divide(); });
 
+    // ---- motility: run / tumble ----
+    // Same Cell methods CCL's run()/tumble() call (Gro.cpp:717).
+    m.def("run_cell",    [](double dvel) { current_cell()->run   (static_cast<float>(dvel)); }, py::arg("dvel"));
+    m.def("tumble_cell", [](double vel)  { current_cell()->tumble(static_cast<float>(vel));  }, py::arg("vel"));
+
     // ---- selected ----
     // True while the user has the current cell selected in the GUI.
     m.def("current_selected", []() -> bool { return current_cell()->is_selected(); });
@@ -309,7 +302,9 @@ PYBIND11_EMBEDDED_MODULE(_core, m) {
     m.def("set_chemostat_mode", [](bool on) { world()->set_chemostat_mode(on); },
           py::arg("on"));
 
-    // Add a static wall between two world-coordinate points.
+    // Add a static wall between two world-coordinate points. The
+    // physics shape and the render record are both set up inside
+    // World::add_barrier, so the binding is just a forwarder.
     m.def("add_barrier", [](double x1, double y1, double x2, double y2) {
         world()->add_barrier(static_cast<float>(x1), static_cast<float>(y1),
                              static_cast<float>(x2), static_cast<float>(y2));

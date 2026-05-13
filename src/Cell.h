@@ -129,6 +129,13 @@ class Cell {
 
   virtual void force_divide ( void ) {}
 
+  // Motility primitives -- shared between CCL's run()/tumble() and
+  // the Python self.run()/self.tumble() bindings. run() thrusts the
+  // cell forward toward velocity dvel and damps angular rotation;
+  // tumble() applies a spin while damping translation.
+  void run    ( float dvel );
+  void tumble ( float vel );
+
  protected:
 
   cpSpace * space;

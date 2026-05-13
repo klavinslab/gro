@@ -385,6 +385,17 @@ class Program(metaclass=_ProgramMeta):
         guard to do volume-thresholded division."""
         _core.force_divide_cell()
 
+    def run(self, dvel):
+        """Apply a forward thrust toward velocity `dvel` and damp the
+        cell's angular rotation. Pair with `tumble(...)` to drive
+        chemotaxis-style motility."""
+        _core.run_cell(dvel)
+
+    def tumble(self, vel):
+        """Apply a torque of magnitude `vel` to spin the cell while
+        damping its forward motion. Counterpart to `run(...)`."""
+        _core.tumble_cell(vel)
+
     def emit_signal(self, handle, amount):
         _core.emit_signal_cell(handle, amount)
 

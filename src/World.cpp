@@ -87,6 +87,21 @@ void World::drain_pending_prog_deletions ( void ) {
         delete p;
     }
     pending_prog_deletions.clear();
+}
+
+void World::dispatch_set_param ( Cell * cc, const std::string & name, float val ) {
+    if ( cc != NULL ) {
+        cc->set_param ( name, val );
+        cc->compute_parameter_derivatives();
+        return;
+    }
+    if ( num_signals() > 0 &&
+         ( name == "signal_grid_width"
+           || name == "signal_grid_height"
+           || name == "signal_element_size" ) ) {
+        return; // refuse to resize the grid after signals are live
+    }
+    set_param ( name, val );
 
 }
 
@@ -684,13 +699,22 @@ void World::dump ( FILE * fp ) {
 
 void World::add_barrier ( float x1, float y1, float x2, float y2 ) {
 
-    Barrier * b = new Barrier;
+    // Physics side: a static chipmunk segment so cells collide with
+    // it. Elastic + frictionless so cells bounce cleanly along walls.
+    cpShape * shape = cpSpaceAddShape(
+        space,
+        cpSegmentShapeNew(cpSpaceGetStaticBody(space),
+                          cpv(x1, y1), cpv(x2, y2), 5.0f));
+    cpShapeSetElasticity(shape, 1.0f);
+    cpShapeSetFriction  (shape, 0.0f);
 
+    // Render side: remember the endpoints so the painter can draw
+    // the wall.
+    Barrier * b = new Barrier;
     b->x1 = x1;
     b->y1 = y1;
     b->x2 = x2;
     b->y2 = y2;
-
     barriers->push_back( *b );
 
 }

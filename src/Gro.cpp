@@ -411,30 +411,12 @@ Value * start ( std::list<Value *> * args, Scope * s ) {
 
 Value * set_param ( std::list<Value *> * args, Scope * s ) {
 
-  World * world = current_gro_program->get_world();
   std::list<Value *>::iterator i = args->begin();
-
   Value * name = *i; i++;
-  Value * val = *i;
+  Value * val  = *i;
 
-  if ( current_cell == NULL ) { // This is a global parameter //////////////////////////////////
-
-      if ( ( name->string_value() != "signal_grid_width"
-          && name->string_value() != "signal_grid_height"
-          && name->string_value() != "signal_element_size" ) || world->num_signals() == 0 ) {
-
-          world->set_param ( name->string_value(), val->num_value() );
-
-      }
-
-  } else { /////////////////////// This is a cell-specific parameter ///////////////////////////
-
-    current_cell->set_param ( name->string_value(), val->num_value() );
-    current_cell->compute_parameter_derivatives();
-
-  }
-
-  //if ( name->string_value() == "throttle" ) set_throttle ( val->num_value() != 0.0 );
+  current_gro_program->get_world()->dispatch_set_param (
+      current_cell, name->string_value(), val->num_value() );
 
   return new Value ( Value::UNIT );
 
@@ -655,13 +637,6 @@ Value * barrier ( std::list<Value *> * args, Scope * s ) {
     i++;
     float y2 = (*i)->num_value();
 
-    cpShape *shape;
-    cpBody *staticBody = cpSpaceGetStaticBody(world->get_space());
-
-    shape = cpSpaceAddShape(world->get_space(), cpSegmentShapeNew(staticBody, cpv(x1,y1), cpv(x2,y2), 5.0f));
-    cpShapeSetElasticity ( shape, 1.0f );
-    cpShapeSetFriction   ( shape, 0.0f );
-
     world->add_barrier ( x1, y1, x2, y2 );
 
     return new Value ( Value::UNIT );
@@ -716,32 +691,13 @@ Value * map_to_cells (  std::list<Value *> * args, Scope * s ) {
 
 Value * run ( std::list<Value *> * args, Scope * s ) {
 
-  World * world = current_gro_program->get_world();
   std::list<Value *>::iterator i = args->begin();
-
   float dvel = (*i)->num_value();
 
-  if ( current_cell != NULL ) {
-
-    float a = current_cell->get_theta();
-    cpBody * body = current_cell->get_body();
-    cpVect v = cpBodyGetVelocity ( body );
-    cpFloat adot = cpBodyGetAngularVelocity ( body );
-
-    cpBodySetTorque ( body, -adot ); // damp angular rotation
-
-    cpBody * cb = cpShapeGetBody(current_cell->get_shape());
-    cpBodyApplyForceAtWorldPoint ( // apply force
-      cb,
-      cpv (
-        ( dvel*cos(a) - v.x ) * world->get_sim_dt(),
-        ( dvel*sin(a) - v.y ) * world->get_sim_dt()
-      ),
-      cpBodyGetPosition(cb) );
-
-  } else
-
-    printf ( "Warning: Tried to emit signal from outside a cell program. No action taken\n" );
+  if ( current_cell != NULL )
+    current_cell->run ( dvel );
+  else
+    printf ( "Warning: Called run() from outside a cell program. No action taken\n" );
 
   return new Value ( Value::UNIT );
 
@@ -749,33 +705,13 @@ Value * run ( std::list<Value *> * args, Scope * s ) {
 
 Value * tumble ( std::list<Value *> * args, Scope * s ) {
 
-  World * world = current_gro_program->get_world();
   std::list<Value *>::iterator i = args->begin();
+  float vel = (*i)->num_value();
 
-  float vel = (*i)->num_value(); 
-
-  if ( current_cell != NULL ) {
-
-    float a = current_cell->get_theta();
-    cpBody * body = current_cell->get_body();
-    cpVect v = cpBodyGetVelocity ( body );
-    cpFloat adot = cpBodyGetAngularVelocity ( body );
-    (void) a;
-
-    cpBodySetTorque ( body, vel - adot ); // apply torque
-
-    cpBody * cb = cpShapeGetBody(current_cell->get_shape());
-    cpBodyApplyForceAtWorldPoint ( // damp translation
-      cb,
-      cpv (
-        - v.x * world->get_sim_dt(),
-        - v.y * world->get_sim_dt()
-      ),
-      cpBodyGetPosition(cb) );
-
-  } else
-
-    printf ( "Warning: Tried to emit signal from outside a cell program. No action taken\n" );
+  if ( current_cell != NULL )
+    current_cell->tumble ( vel );
+  else
+    printf ( "Warning: Called tumble() from outside a cell program. No action taken\n" );
 
   return new Value ( Value::UNIT );
 
