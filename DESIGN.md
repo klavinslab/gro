@@ -265,7 +265,8 @@ Composite = compose(P1, P2, share=["t", "gfp"])
   rule-declaration order within a part. Matches CCL's "guarded commands
   union, in order" semantics.
 
-Parametric composition (deferred to M5b — `Program.with_args(...)`):
+Parametric composition has two forms. For the common case where the
+parameters override `State` defaults, use `Program.with_args(...)`:
 
 ```python
 def Repeater(x):
@@ -273,13 +274,13 @@ def Repeater(x):
                    Pulser.with_args(period=x+2))
 ```
 
-`Program.with_args(...)` returns a thin subclass that injects the args
-into `setup()` and (if any of the args are fields) into the initial
-state.
+`Program.with_args(**overrides)` returns a thin subclass with the
+named `State` defaults overridden. Wrap a value in `Preserved(...)`
+to mark it preserved across division.
 
-Pending `.with_args`, the working form for parametric programs is a
-plain factory function that closes over the parameters and returns a
-`Program` subclass:
+For parameters that shape rules (predicates, action bodies) rather
+than just state defaults, use a plain factory function that closes
+over the parameters and returns a `Program` subclass:
 
 ```python
 def state_node(this, m_next, d_next, tf, gr, sigs):
@@ -292,7 +293,7 @@ def state_node(this, m_next, d_next, tf, gr, sigs):
     return S
 ```
 
-Class-style sugar (deferred to M5b — `Composed` base class):
+Class-style sugar via the `Composed` base class:
 
 ```python
 class Wave(Composed):
