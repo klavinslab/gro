@@ -79,20 +79,19 @@ static void emit_python_error(const std::string & where,
     }
 }
 
-// Adapter that lets a CCL Cell drive a Python Program. EColi::update
-// calls program->update(world, this); we forward that to the Python
-// instance's _tick() with the cell installed as the current_cell.
-class PythonMicroProgram : public MicroProgram {
+// Shared base for PythonMicroProgram (cell-level) and
+// PythonWorldProgram (world-level). Owns the py::object handle to
+// the user's Program instance; destructor acquires the GIL before
+// dropping the refcount (Cell deletion can happen on either
+// thread). If Py_Finalize has already run during static teardown
+// there's no interpreter to acquire -- leak the refcount silently
+// rather than crash.
+class PythonProgramBase : public MicroProgram {
 public:
-    explicit PythonMicroProgram(py::object instance)
+    explicit PythonProgramBase(py::object instance)
         : instance_(std::move(instance)) {}
 
-    // py::object's destructor decrements a Python refcount; must hold
-    // the GIL when that happens. Cell deletion can happen on either
-    // thread. If Py_Finalize has already run (e.g. during static
-    // teardown), there's no interpreter to acquire — leak the
-    // refcount silently rather than crash.
-    ~PythonMicroProgram() override {
+    ~PythonProgramBase() override {
         if (!Py_IsInitialized()) {
             instance_.release();
             return;
@@ -100,6 +99,17 @@ public:
         py::gil_scoped_acquire gil;
         instance_ = py::object();
     }
+
+protected:
+    py::object instance_;
+};
+
+// Adapter that lets a CCL Cell drive a Python Program. EColi::update
+// calls program->update(world, this); we forward that to the Python
+// instance's _tick() with the cell installed as the current_cell.
+class PythonMicroProgram : public PythonProgramBase {
+public:
+    using PythonProgramBase::PythonProgramBase;
 
     void update(World * w, Cell * c) override {
         py::gil_scoped_acquire gil;
@@ -125,8 +135,7 @@ public:
         // Delegate state-splitting to Program._split in Python. On
         // any Python error we return nullptr; the caller in
         // EColi::divide skips set_prog for the daughter, leaving
-        // her programless rather than crashing. Better than nothing
-        // until the error-overlay path is wired up.
+        // her programless rather than crashing.
         py::gil_scoped_acquire gil;
         try {
             py::object new_instance = instance_.attr("_split")(mother_frac);
@@ -136,27 +145,14 @@ public:
             return nullptr;
         }
     }
-
-private:
-    py::object instance_;
 };
 
-// World-level analogue of PythonMicroProgram. Stored on World::prog
-// for Python-loaded worlds that call gro.set_main(...). The World
-// calls world_update() once per simulation tick.
-class PythonWorldProgram : public MicroProgram {
+// World-level analogue. Stored on World::prog for Python-loaded
+// worlds that call gro.set_main(...). The World calls world_update()
+// once per simulation tick.
+class PythonWorldProgram : public PythonProgramBase {
 public:
-    explicit PythonWorldProgram(py::object instance)
-        : instance_(std::move(instance)) {}
-
-    ~PythonWorldProgram() override {
-        if (!Py_IsInitialized()) {
-            instance_.release();
-            return;
-        }
-        py::gil_scoped_acquire gil;
-        instance_ = py::object();
-    }
+    using PythonProgramBase::PythonProgramBase;
 
     void world_update(World * /*w*/) override {
         py::gil_scoped_acquire gil;
@@ -168,9 +164,6 @@ public:
     }
 
     bool owned_by_world() const override { return true; }
-
-private:
-    py::object instance_;
 };
 
 PYBIND11_EMBEDDED_MODULE(_core, m) {

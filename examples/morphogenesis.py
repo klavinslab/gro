@@ -112,9 +112,9 @@ class SM(Program):
 
 
 class Reporter(Program):
-    """Reads `q` from shared state and paints the cell. CCL's
-    `program report()` minus the `selected : message(...)` rule
-    (message() is deferred)."""
+    """Reads `q` from shared state, paints the cell, and prints
+    {id, q} on the on-screen channel-2 quadrant when the user
+    selects the cell. Mirrors CCL's `program report()`."""
     state = State()
     requires = ["q"]
 
@@ -125,6 +125,10 @@ class Reporter(Program):
         self.yfp = 100 if q in (1, 2) else 0
         self.cfp = 100 if q in (5, 7) else 0
         self.gfp = 100 if q in (6, 8) else 0
+
+    @when(lambda self: self.selected)
+    def show(self):
+        self.message(2, f"{{ id={self.id}, q={self.state.q} }}")
 
 
 Morpho = compose(

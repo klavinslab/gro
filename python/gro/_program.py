@@ -524,7 +524,11 @@ def compose(*parts, share=None):
                     if name in f._preserved:
                         merged_preserved.add(name)
                 else:
-                    key = f"_p{idx}_{name}"
+                    # Include the part's class name when it's a valid
+                    # identifier -- makes vars(self.state) readable in
+                    # the debugger (`_State_0_1_active` vs `_p1_active`).
+                    pname = p.__name__ if p.__name__.isidentifier() else f"p{idx}"
+                    key = f"_{pname}_{idx}_{name}"
                     merged_defaults[key] = default
                     aliases[name] = key
                     if name in f._preserved:

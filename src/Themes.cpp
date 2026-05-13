@@ -75,70 +75,41 @@ Theme::Theme ( void ) {
 
 void Theme::set ( Value * rec ) {
 
-    Value * v;
+    // Extract field-by-field from the CCL record, falling back to
+    // the current value when a field is absent. Then forward to
+    // set_colors so the actual member-assignment + br/bg/bb parse
+    // lives in one place.
+    auto str_or = [&](const char * key, const std::string & fallback) {
+      Value * v = rec->getField(key);
+      return (v && v->get_type() == Value::STRING) ? v->string_value()
+                                                   : fallback;
+    };
 
-    v = rec->getField( "background" );
-
-    if ( v && v->get_type() == Value::STRING ) {
-      background = v->string_value();
-    }
-
-    QColor c ( background.c_str() );
-
-    br = c.red() / 255.0;
-    bg = c.green() / 255.0;
-    bb = c.blue() / 255.0;
-
-    v = rec->getField( "ecoli_edge" );
-
-    if ( v && v->get_type() == Value::STRING ) {
-      ecoli_edge = v->string_value();
-    }
-
-    v = rec->getField( "message" );
-
-    if ( v && v->get_type() == Value::STRING ) {
-      message = v->string_value();
-    }
-
-    v = rec->getField( "chemostat" );
-
-    if ( v && v->get_type() == Value::STRING ) {
-      chemostat_edge = v->string_value();
-    }
-
-    v = rec->getField( "mouse" );
-
-    if ( v && v->get_type() == Value::STRING ) {
-      mouse = v->string_value();
-    }
-
-    v = rec->getField( "ecoli_selected" );
-
-    if ( v && v->get_type() == Value::STRING ) {
-      ecoli_selected = v->string_value();
-    }
-
-    v = rec->getField( "signals" );
-    int n, m;
-
-    if ( v && v->get_type() == Value::LIST ) {
-
-        std::list<Value *>::iterator i,j;
-        signal_colors.resize(v->list_value()->size());
-
-        for ( n=0, i=v->list_value()->begin(); i!=v->list_value()->end(); n++, i++) {
-
-            Value * col = *i;
-            signal_colors[n].resize(3);
-
-            for ( m=0, j=col->list_value()->begin(); m<3 && j!=col->list_value()->end(); m++, j++) {
-                signal_colors[n][m] = (*j)->num_value();
+    std::vector<std::vector<float>> palette = signal_colors;
+    Value * sig = rec->getField("signals");
+    if (sig && sig->get_type() == Value::LIST) {
+        palette.clear();
+        palette.resize(sig->list_value()->size());
+        int n = 0;
+        for (auto i = sig->list_value()->begin();
+             i != sig->list_value()->end(); ++n, ++i) {
+            palette[n].resize(3);
+            int m = 0;
+            for (auto j = (*i)->list_value()->begin();
+                 m < 3 && j != (*i)->list_value()->end(); ++m, ++j) {
+                palette[n][m] = (*j)->num_value();
             }
-
         }
-
     }
+
+    set_colors(
+        str_or("background",     background),
+        str_or("ecoli_edge",     ecoli_edge),
+        str_or("ecoli_selected", ecoli_selected),
+        str_or("chemostat",      chemostat_edge),
+        str_or("message",        message),
+        str_or("mouse",          mouse),
+        palette);
 
 }
 
