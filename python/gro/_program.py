@@ -332,12 +332,13 @@ class Program(metaclass=_ProgramMeta):
         overridden. Wrap a value in `Preserved(...)` to mark it
         preserved on division; otherwise the original Preserved
         status is retained."""
-        if not isinstance(cls.state, _StateFactory):
+        factory = getattr(cls, "state", None)
+        if not isinstance(factory, _StateFactory):
             raise GroLoadError(
                 f"{cls.__name__}.with_args(): {cls.__name__} has no "
                 f"State(...) to override")
-        new_defaults = dict(cls.state._defaults)
-        new_preserved = set(cls.state._preserved)
+        new_defaults = dict(factory._defaults)
+        new_preserved = set(factory._preserved)
         for name, value in overrides.items():
             if name not in new_defaults:
                 raise GroLoadError(

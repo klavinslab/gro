@@ -69,6 +69,26 @@ cmake --build build -j
 ./build/gro
 ```
 
+Tests
+---
+
+The Python integration has a headless test suite (stdlib `unittest`,
+zero external dependencies):
+
+```bash
+python3 tests/run.py        # run everything
+python3 tests/run.py -v     # verbose
+python3 tests/run.py test_compose test_strict   # specific modules
+```
+
+`tests/_stub.py` substitutes a MagicMock `_core` so the suite runs
+without launching gro. Coverage: state schema, rule decorators,
+strict-mode AST validators, `Program.with_args`, `compose` and
+`_PartScope`, `Composed` sugar, `WorldProgram`/`set_main`/`reset`,
+and a one-test-per-file smoke check that every `examples/*.py`
+loads cleanly.
+
+
 Layout
 ---
 
