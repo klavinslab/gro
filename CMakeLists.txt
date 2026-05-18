@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
-project(gro VERSION 1.0.0 LANGUAGES CXX)
+project(gro VERSION 1.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -40,9 +40,24 @@ if(APPLE)
     find_program(BREW_EXECUTABLE brew)
     _gro_use_brew_qt_pkg(qtbase "")
     _gro_use_brew_qt_pkg(qtsvg  Qt6Svg)
+
+    # Homebrew's python3 isn't keg-only, but pointing Python3_ROOT_DIR
+    # at it makes find_package prefer the brew Python over any
+    # /Library/Frameworks/Python.framework that might also be present.
+    execute_process(
+        COMMAND ${BREW_EXECUTABLE} --prefix python3
+        OUTPUT_VARIABLE _brew_python_prefix
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+        RESULT_VARIABLE _brew_python_rc
+    )
+    if(_brew_python_rc EQUAL 0 AND IS_DIRECTORY "${_brew_python_prefix}")
+        set(Python3_ROOT_DIR "${_brew_python_prefix}")
+    endif()
 endif()
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Widgets Svg)
+find_package(Python3 3.11 REQUIRED COMPONENTS Development Interpreter)
 qt_standard_project_setup()
 
 # ----------------------------------------------------------------------------
@@ -62,6 +77,12 @@ FetchContent_Declare(chipmunk
     GIT_TAG        Chipmunk-7.0.3
 )
 
+# pybind11: header-only C++/Python binding library used to embed CPython.
+FetchContent_Declare(pybind11
+    GIT_REPOSITORY https://github.com/pybind/pybind11.git
+    GIT_TAG        v2.13.6
+)
+
 # Chipmunk's CMakeLists.txt builds demos and several extras we don't want.
 set(BUILD_DEMOS    OFF CACHE BOOL "" FORCE)
 set(INSTALL_DEMOS  OFF CACHE BOOL "" FORCE)
@@ -69,28 +90,30 @@ set(INSTALL_STATIC OFF CACHE BOOL "" FORCE)
 set(BUILD_SHARED   OFF CACHE BOOL "" FORCE)
 set(BUILD_STATIC   ON  CACHE BOOL "" FORCE)
 
-FetchContent_MakeAvailable(ccl chipmunk)
+FetchContent_MakeAvailable(ccl chipmunk pybind11)
 
 # ----------------------------------------------------------------------------
 # gro executable
 # ----------------------------------------------------------------------------
 qt_add_executable(gro MACOSX_BUNDLE
-    main.cpp
-    gui.cpp
-    gui.ui
-    GroThread.cpp
-    GroWidget.cpp
-    Messages.cpp
-    Programs.cpp
-    Signal.cpp
-    Themes.cpp
-    Utility.cpp
-    World.cpp
-    EColi.cpp
-    Gro.cpp
-    GroPainter.cpp
-    Cell.cpp
-    reaction.cpp
+    src/main.cpp
+    src/gui.cpp
+    src/gui.ui
+    src/GroThread.cpp
+    src/GroWidget.cpp
+    src/Messages.cpp
+    src/Programs.cpp
+    src/Signal.cpp
+    src/Themes.cpp
+    src/Utility.cpp
+    src/World.cpp
+    src/EColi.cpp
+    src/Yeast.cpp
+    src/Gro.cpp
+    src/GroPainter.cpp
+    src/Cell.cpp
+    src/reaction.cpp
+    src/PythonRuntime.cpp
     icons.qrc
 )
 
@@ -99,6 +122,7 @@ target_link_libraries(gro PRIVATE
     Qt6::Svg
     ccl
     chipmunk_static
+    pybind11::embed
 )
 
 target_compile_definitions(gro PRIVATE GRO_VERSION="${PROJECT_VERSION}")
@@ -122,21 +146,25 @@ set_source_files_properties(groicon.icns PROPERTIES
 )
 
 # ----------------------------------------------------------------------------
-# Bundle examples/ and include/ into gro.app/Contents/Resources/ so the
-# .app is self-contained and ships in the DMG. main.cpp chdirs to
-# applicationDirPath/../Resources at startup, so the CCL lexer finds
-# `include/gro.gro` relative to it.
+# include/, examples/, and python/ are siblings of gro.app at install
+# time. At startup, main.cpp walks up from the executable directory
+# looking for a directory that contains all three -- the source-tree
+# root in dev, the install directory in production. No symlinks are
+# created in the build tree; the source tree itself is the only copy.
+#
+# The DMG (later) ships gro.app + the three directories at its top
+# level so the same search resolves to the install location.
+#
+# As a dev convenience, we drop a gro.app symlink at the source-tree
+# root pointing at the build's bundle so the user can double-click
+# from the project directory.
 # ----------------------------------------------------------------------------
 add_custom_command(TARGET gro POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E rm -rf
-        "$<TARGET_BUNDLE_CONTENT_DIR:gro>/Resources/examples"
-        "$<TARGET_BUNDLE_CONTENT_DIR:gro>/Resources/include"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_CURRENT_SOURCE_DIR}/examples
-        "$<TARGET_BUNDLE_CONTENT_DIR:gro>/Resources/examples"
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        "$<TARGET_BUNDLE_CONTENT_DIR:gro>/Resources/include"
+    COMMAND ${CMAKE_COMMAND} -E rm -f
+        "${CMAKE_CURRENT_SOURCE_DIR}/gro.app"
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+        "$<TARGET_BUNDLE_DIR:gro>"
+        "${CMAKE_CURRENT_SOURCE_DIR}/gro.app"
     VERBATIM
 )
 

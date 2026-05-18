@@ -45,6 +45,7 @@ public:
     QSize sizeHint ( void ) { return QSize(800,800); }
     QSize minimumSizeHint ( void )  { return QSize(100,100); }
     GroThread::STATE getThreadState ( void ) { return grothread.get_state(); }
+    World * get_world ( void ) const { return grothread.get_world(); }
     void dump ( QString filename );
 
 signals:

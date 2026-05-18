@@ -159,48 +159,25 @@ Value * new_signal ( std::list<Value *> * args, Scope * s ) {
   Value * kdi = *i; i++;
   Value * kde = *i;
 
-  int w, h, numx, numy;
-
-  w = world->get_param ( "signal_grid_width" );
-  h = world->get_param ( "signal_grid_height" );
-  numx = w / world->get_param ( "signal_element_size" );
-  numy = h / world->get_param ( "signal_element_size" );
-
-  Signal * sig = new Signal (
-     cpv ( -w/2, -h/2 ), cpv ( w/2, h/2 ), numx, numy,
-     kdi->num_value(), kde->num_value() );
-
-  world->add_signal ( sig );
-
-  return new Value ( world->num_signals() - 1 );
+  return new Value (
+      world->add_new_signal ( kdi->num_value(), kde->num_value() ) );
 
 }
 
 Value * add_reaction ( std::list<Value *> * args, Scope * s ) {
 
-    World * world = current_gro_program->get_world();
-
-    // args are: reactants, products, rate
     std::list<Value *>::iterator i = args->begin();
     Value * R = *i; i++;
     Value * P = *i; i++;
     Value * k = *i;
 
-    Reaction r (k->num_value());
+    std::vector<int> reactants, products;
+    for ( auto j = R->list_value()->begin(); j != R->list_value()->end(); j++ )
+        reactants.push_back ( (*j)->int_value() );
+    for ( auto j = P->list_value()->begin(); j != P->list_value()->end(); j++ )
+        products .push_back ( (*j)->int_value() );
 
-    for ( i=R->list_value()->begin(); i != R->list_value()->end(); i++ ) {
-        if ( (*i)->int_value() < 0 || (*i)->int_value() >= world->num_signals() )
-            throw std::string ( "Reaction refers to a non-existant reactant." );
-        r.add_reactant( (*i)->int_value() );
-    }
-
-    for ( i=P->list_value()->begin(); i != P->list_value()->end(); i++ ) {
-        if ( (*i)->int_value() < 0 || (*i)->int_value() >= world->num_signals() )
-            throw std::string ( "Reaction refers to a non-existant product." );
-        r.add_product( (*i)->int_value() );
-    }
-
-    world->add_reaction(r);
+    current_gro_program->get_world()->add_reaction ( reactants, products, k->num_value() );
 
     return new Value ( Value::UNIT );
 
@@ -423,30 +400,12 @@ Value * start ( std::list<Value *> * args, Scope * s ) {
 
 Value * set_param ( std::list<Value *> * args, Scope * s ) {
 
-  World * world = current_gro_program->get_world();
   std::list<Value *>::iterator i = args->begin();
-
   Value * name = *i; i++;
-  Value * val = *i;
+  Value * val  = *i;
 
-  if ( current_cell == NULL ) { // This is a global parameter //////////////////////////////////
-
-      if ( ( name->string_value() != "signal_grid_width"
-          && name->string_value() != "signal_grid_height"
-          && name->string_value() != "signal_element_size" ) || world->num_signals() == 0 ) {
-
-          world->set_param ( name->string_value(), val->num_value() );
-
-      }
-
-  } else { /////////////////////// This is a cell-specific parameter ///////////////////////////
-
-    current_cell->set_param ( name->string_value(), val->num_value() );
-    current_cell->compute_parameter_derivatives();
-
-  }
-
-  //if ( name->string_value() == "throttle" ) set_throttle ( val->num_value() != 0.0 );
+  current_gro_program->get_world()->dispatch_set_param (
+      current_cell, name->string_value(), val->num_value() );
 
   return new Value ( Value::UNIT );
 
@@ -454,18 +413,8 @@ Value * set_param ( std::list<Value *> * args, Scope * s ) {
 
 Value * world_stats ( std::list<Value *> * args, Scope * s ) {
 
-  World * world = current_gro_program->get_world();
   std::list<Value *>::iterator i = args->begin();
-
-  Value * name = *i;
-
-  if ( name->string_value() == "pop_size" ) {
-
-    return new Value ( world->get_pop_size() );
-    
-  } else printf ( "unknown statistic %s in call to 'stat'\n", name->string_value().c_str() );
-
-  return new Value ( 0 );
+  return new Value ( current_gro_program->get_world()->stats ( (*i)->string_value() ) );
 
 }
 
@@ -667,13 +616,6 @@ Value * barrier ( std::list<Value *> * args, Scope * s ) {
     i++;
     float y2 = (*i)->num_value();
 
-    cpShape *shape;
-    cpBody *staticBody = cpSpaceGetStaticBody(world->get_space());
-
-    shape = cpSpaceAddShape(world->get_space(), cpSegmentShapeNew(staticBody, cpv(x1,y1), cpv(x2,y2), 5.0f));
-    cpShapeSetElasticity ( shape, 1.0f );
-    cpShapeSetFriction   ( shape, 0.0f );
-
     world->add_barrier ( x1, y1, x2, y2 );
 
     return new Value ( Value::UNIT );
@@ -728,32 +670,13 @@ Value * map_to_cells (  std::list<Value *> * args, Scope * s ) {
 
 Value * run ( std::list<Value *> * args, Scope * s ) {
 
-  World * world = current_gro_program->get_world();
   std::list<Value *>::iterator i = args->begin();
-
   float dvel = (*i)->num_value();
 
-  if ( current_cell != NULL ) {
-
-    float a = current_cell->get_theta();
-    cpBody * body = current_cell->get_body();
-    cpVect v = cpBodyGetVelocity ( body );
-    cpFloat adot = cpBodyGetAngularVelocity ( body );
-
-    cpBodySetTorque ( body, -adot ); // damp angular rotation
-
-    cpBody * cb = cpShapeGetBody(current_cell->get_shape());
-    cpBodyApplyForceAtWorldPoint ( // apply force
-      cb,
-      cpv (
-        ( dvel*cos(a) - v.x ) * world->get_sim_dt(),
-        ( dvel*sin(a) - v.y ) * world->get_sim_dt()
-      ),
-      cpBodyGetPosition(cb) );
-
-  } else
-
-    printf ( "Warning: Tried to emit signal from outside a cell program. No action taken\n" );
+  if ( current_cell != NULL )
+    current_cell->run ( dvel );
+  else
+    printf ( "Warning: Called run() from outside a cell program. No action taken\n" );
 
   return new Value ( Value::UNIT );
 
@@ -761,33 +684,13 @@ Value * run ( std::list<Value *> * args, Scope * s ) {
 
 Value * tumble ( std::list<Value *> * args, Scope * s ) {
 
-  World * world = current_gro_program->get_world();
   std::list<Value *>::iterator i = args->begin();
+  float vel = (*i)->num_value();
 
-  float vel = (*i)->num_value(); 
-
-  if ( current_cell != NULL ) {
-
-    float a = current_cell->get_theta();
-    cpBody * body = current_cell->get_body();
-    cpVect v = cpBodyGetVelocity ( body );
-    cpFloat adot = cpBodyGetAngularVelocity ( body );
-    (void) a;
-
-    cpBodySetTorque ( body, vel - adot ); // apply torque
-
-    cpBody * cb = cpShapeGetBody(current_cell->get_shape());
-    cpBodyApplyForceAtWorldPoint ( // damp translation
-      cb,
-      cpv (
-        - v.x * world->get_sim_dt(),
-        - v.y * world->get_sim_dt()
-      ),
-      cpBodyGetPosition(cb) );
-
-  } else
-
-    printf ( "Warning: Tried to emit signal from outside a cell program. No action taken\n" );
+  if ( current_cell != NULL )
+    current_cell->tumble ( vel );
+  else
+    printf ( "Warning: Called tumble() from outside a cell program. No action taken\n" );
 
   return new Value ( Value::UNIT );
 

@@ -56,3 +56,39 @@ Cell::~Cell ( void ) {
   }
 
 }
+
+void Cell::run ( float dvel ) {
+
+  float a = get_theta();
+  cpVect v = cpBodyGetVelocity ( body );
+  cpFloat adot = cpBodyGetAngularVelocity ( body );
+
+  cpBodySetTorque ( body, -adot );
+
+  cpBody * cb = cpShapeGetBody ( shape );
+  cpBodyApplyForceAtWorldPoint (
+    cb,
+    cpv (
+      ( dvel * cos(a) - v.x ) * world->get_sim_dt(),
+      ( dvel * sin(a) - v.y ) * world->get_sim_dt()
+    ),
+    cpBodyGetPosition ( cb )
+  );
+
+}
+
+void Cell::tumble ( float vel ) {
+
+  cpVect v = cpBodyGetVelocity ( body );
+  cpFloat adot = cpBodyGetAngularVelocity ( body );
+
+  cpBodySetTorque ( body, vel - adot );
+
+  cpBody * cb = cpShapeGetBody ( shape );
+  cpBodyApplyForceAtWorldPoint (
+    cb,
+    cpv ( -v.x * world->get_sim_dt(), -v.y * world->get_sim_dt() ),
+    cpBodyGetPosition ( cb )
+  );
+
+}

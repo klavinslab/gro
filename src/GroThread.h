@@ -60,6 +60,7 @@ public:
     bool snapshot ( QString pathname );
     void set_zoom ( float z );
     void dump ( QString filename );
+    World * get_world ( void ) const { return world; }
 
 #ifndef NOGUI
     inline Theme * theme ( void ) { return has_valid_world() ? world->get_theme() : NULL; }

@@ -39,6 +39,7 @@ World::World ( GroThread *ct ) : calling_thread ( ct ) {
     program_initialized = false;
     gro_message = "";
     stop_flag = false;
+    tick_count = 0;
     zoom = 1.0;
     barriers = new std::list<Barrier>;
 
@@ -64,7 +65,77 @@ World::~World ( void ) {
 
     delete population;
 
-    prog->destroy(this);
+    // Order matters: cells, signals, and chipmunk space are torn
+    // down before prog->destroy() so destroy() cannot safely touch
+    // them. Both PythonWorldProgram::destroy and the default no-op
+    // honor that contract today; a future world program needing
+    // World access during destroy would have to move this earlier.
+    if (prog) {
+        prog->destroy(this);
+        // CCL's gro_Program is owned by GroThread; Python-installed
+        // world programs (via set_main) hand ownership to World and
+        // get deleted here.
+        if (prog->owned_by_world()) {
+            delete prog;
+            prog = NULL;
+        }
+    }
+    drain_pending_prog_deletions();
+}
+
+void World::drain_pending_prog_deletions ( void ) {
+    for (MicroProgram * p : pending_prog_deletions) {
+        delete p;
+    }
+    pending_prog_deletions.clear();
+}
+
+double World::stats ( const std::string & name ) {
+
+    if ( name == "pop_size" ) return get_pop_size();
+
+    // Throwing rather than silently returning 0 -- a typo in
+    // stats("popsize") would otherwise fire game.py's `== 0` rule
+    // on every tick. pybind11 surfaces std::string throws as Python
+    // RuntimeError; CCL's eval loop will fail loudly the same way.
+    throw std::string ( "unknown statistic '" + name + "' in call to stats()" );
+
+}
+
+void World::add_reaction ( const std::vector<int> & reactants,
+                            const std::vector<int> & products,
+                            float rate ) {
+
+    Reaction r ( rate );
+
+    for ( int idx : reactants ) {
+        if ( idx < 0 || idx >= num_signals() )
+            throw std::string ( "Reaction refers to a non-existant reactant." );
+        r.add_reactant ( idx );
+    }
+    for ( int idx : products ) {
+        if ( idx < 0 || idx >= num_signals() )
+            throw std::string ( "Reaction refers to a non-existant product." );
+        r.add_product ( idx );
+    }
+
+    add_reaction ( r );
+
+}
+
+void World::dispatch_set_param ( Cell * cc, const std::string & name, float val ) {
+    if ( cc != NULL ) {
+        cc->set_param ( name, val );
+        cc->compute_parameter_derivatives();
+        return;
+    }
+    if ( num_signals() > 0 &&
+         ( name == "signal_grid_width"
+           || name == "signal_grid_height"
+           || name == "signal_element_size" ) ) {
+        return; // refuse to resize the grid after signals are live
+    }
+    set_param ( name, val );
 
 }
 
@@ -77,7 +148,7 @@ void Cell::init ( const int * q0, const int * rep0, float frac ) {
 
 }
 
-void World::init () {
+void World::init_state () {
 
     // Time
     t = 0.0f;
@@ -92,21 +163,59 @@ void World::init () {
     cpSpaceSetDamping       ( space, DAMPING );
     cpSpaceSetCollisionSlop ( space, 0.2 );
 
-    // Default parameters. These will be over-written when/if the program
-    // defines them via "set". But just in case the user does not do this,
-    // they are defined here.
+    // World default parameters are set by the language stdlib, not
+    // here: include/gro.gro for the CCL path, python/gro/__init__.py
+    // for the Python path. Each is its language's "gro" library and
+    // owns the defaults its programs see.
 
-    set_param ( "chemostat_width", 200);
-    set_param ( "chemostat_height", 200);
-    set_param ( "signal_area_width", 800);
-    set_param ( "signal_num_divisions", 160);
-    set_param ( "population_max", 1000 );
+}
 
-    set_param ( "signal_grid_width", 800 );
-    set_param ( "signal_grid_height", 800 );
-    set_param ( "signal_element_size", 5 );
+void World::init_chemostat_walls () {
 
-    // Program
+    if ( !chemostat_mode )
+        return;
+
+    cpBody *staticBody = cpSpaceGetStaticBody(space);
+
+    int w = get_param("chemostat_width")/2,
+            h = get_param("chemostat_height")/2;
+
+    auto add_wall = [&](cpVect a, cpVect b) {
+        cpShape *s = cpSpaceAddShape(space, cpSegmentShapeNew(staticBody, a, b, 5.0f));
+        cpShapeSetElasticity ( s, 1.0f );
+        cpShapeSetFriction   ( s, 0.0f );
+    };
+
+    add_wall ( cpv(-400,h), cpv(-w,h)  );
+    add_wall ( cpv(-w,h),   cpv(-w,-h) );
+    add_wall ( cpv(-w,-h),  cpv(w,-h)  );
+    add_wall ( cpv(w,-h),   cpv(w,h)   );
+    add_wall ( cpv(w,h),    cpv(400,h) );
+
+}
+
+int World::add_new_signal ( float diffusion, float degradation ) {
+
+    int w    = get_param("signal_grid_width");
+    int h    = get_param("signal_grid_height");
+    int numx = w / get_param("signal_element_size");
+    int numy = h / get_param("signal_element_size");
+
+    Signal * sig = new Signal (
+        cpv(-w/2, -h/2), cpv(w/2, h/2), numx, numy,
+        diffusion, degradation );
+
+    add_signal(sig);
+    return num_signals() - 1;
+
+}
+
+void World::init () {
+
+    init_state();
+
+    // Program (CCL path only; Python path runs the user file instead
+    // of calling prog->init).
     ASSERT ( prog != NULL );
 
     if ( !program_initialized ) {
@@ -119,30 +228,7 @@ void World::init () {
 
     }
 
-    // Chemostat
-    if ( chemostat_mode ) {
-
-        cpShape *shape;
-        cpBody *staticBody = cpSpaceGetStaticBody(space);
-
-        int w = get_param("chemostat_width")/2,
-                h = get_param("chemostat_height")/2;
-
-        auto add_wall = [&](cpVect a, cpVect b) {
-            cpShape *s = cpSpaceAddShape(space, cpSegmentShapeNew(staticBody, a, b, 5.0f));
-            cpShapeSetElasticity ( s, 1.0f );
-            cpShapeSetFriction   ( s, 0.0f );
-            return s;
-        };
-
-        shape = add_wall ( cpv(-400,h), cpv(-w,h)  );
-        shape = add_wall ( cpv(-w,h),   cpv(-w,-h) );
-        shape = add_wall ( cpv(-w,-h),  cpv(w,-h)  );
-        shape = add_wall ( cpv(w,-h),   cpv(w,h)   );
-        shape = add_wall ( cpv(w,h),    cpv(400,h) );
-        (void) shape;
-
-    }
+    init_chemostat_walls();
 
 }
 
@@ -343,9 +429,18 @@ cpVect World::chemostat_flow ( float, float y, float mag ) {
 
 void World::update ( void ) {
 
+    tick_count.fetch_add(1);
+
     if ( population->size() < get_param ( "population_max" ) ) {
 
-        prog->world_update ( this );
+        if ( prog ) {
+            prog->world_update ( this );  // null for Python-loaded worlds (no main yet)
+            // If a rule body called set_main(...) and replaced the
+            // currently-running prog, the old one was stashed for
+            // deferred deletion. Now that world_update has returned
+            // and the prog's C++ frame is gone, it's safe to free.
+            drain_pending_prog_deletions();
+        }
         std::list<Cell *>::iterator j;
 
         // update each cell
@@ -452,6 +547,13 @@ void World::absorb_signal ( Cell * c, int i, float ds ) {
 
 std::vector< std::vector<float> > * World::get_signal_matrix ( int i ) {
 
+  // Pointer is into the Signal's internal storage -- DO NOT delete
+  // it at the call site. The bounds check here means both CCL and
+  // Python bindings can forward without re-checking, and an
+  // out-of-range CCL call now raises instead of segfaulting in the
+  // signal_list[i] indexing.
+  if ( i < 0 || i >= num_signals() )
+      throw std::string ( "get_signal_matrix: invalid signal handle" );
   return signal_list[i]->get_signal_matrix();
 
 }
@@ -640,13 +742,22 @@ void World::dump ( FILE * fp ) {
 
 void World::add_barrier ( float x1, float y1, float x2, float y2 ) {
 
-    Barrier * b = new Barrier;
+    // Physics side: a static chipmunk segment so cells collide with
+    // it. Elastic + frictionless so cells bounce cleanly along walls.
+    cpShape * shape = cpSpaceAddShape(
+        space,
+        cpSegmentShapeNew(cpSpaceGetStaticBody(space),
+                          cpv(x1, y1), cpv(x2, y2), 5.0f));
+    cpShapeSetElasticity(shape, 1.0f);
+    cpShapeSetFriction  (shape, 0.0f);
 
+    // Render side: remember the endpoints so the painter can draw
+    // the wall.
+    Barrier * b = new Barrier;
     b->x1 = x1;
     b->y1 = y1;
     b->x2 = x2;
     b->y2 = y2;
-
     barriers->push_back( *b );
 
 }

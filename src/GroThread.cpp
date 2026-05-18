@@ -18,7 +18,9 @@
 //
 
 #include <QtGui>
+#include <cstring>
 #include "GroThread.h"
+#include "PythonRuntime.h"
 
 #define RESIZE                                    \
   middle = QSize(size.width()/2,size.height()/2); \
@@ -133,10 +135,68 @@ void GroThread::run()
 
 }
 
+// Returns true if `path` ends with `.py` (case-insensitive). Anything
+// else routes through the existing CCL parser.
+static bool isPythonProgram(const char * path) {
+    if (!path) return false;
+    size_t n = std::strlen(path);
+    if (n < 3) return false;
+    return (path[n-3] == '.' &&
+            (path[n-2] == 'p' || path[n-2] == 'P') &&
+            (path[n-1] == 'y' || path[n-1] == 'Y'));
+}
+
 bool GroThread::parse ( const char * path ) {
 
     //if ( world )
     //    delete world;
+
+    // .py files are routed to the embedded Python runtime. The
+    // simulator creates the World, then PythonRuntime runs the user's
+    // .py file, during which bound functions (ecoli, signal, …) add
+    // cells/signals to the world.
+    if (isPythonProgram(path)) {
+        PythonRuntime & rt = PythonRuntime::instance();
+
+        // If the simulator thread is mid-run (e.g. user reloaded
+        // without pressing Stop), block until it exits its forever-
+        // loop before tearing down its World. Otherwise delete world
+        // races with World::update on the sim thread.
+        if (isRunning() && world) {
+            world->set_stop_flag(true);
+            wait();
+        }
+        // Clear the static current_world_ BEFORE deleting the old
+        // World so any errant Python callback that lands during
+        // teardown sees null (and gets a clean "no active sim
+        // world" error) rather than a freed pointer.
+        rt.setCurrentWorld(nullptr);
+
+        delete world;               // drop any previous run's world
+        world = new World(this);
+        world->init_state();        // chipmunk space + default params
+
+        rt.setCurrentWorld(world);   // stays set for the world's lifetime
+
+        std::string err;
+        bool ok = rt.loadProgram(path, err);
+
+        if (!ok) {
+            rt.setCurrentWorld(nullptr);
+            error_string = err;
+            delete world;
+            world = NULL;
+            CHANGE_STATE(NO_PROGRAM);
+            return false;
+        }
+
+        world->init_chemostat_walls();   // safe no-op if chemostat is off
+
+        CHANGE_STATE(READY);
+        RESIZE;
+        RENDER;
+        return true;
+    }
 
     world = new World(this);
     register_gro_functions();

@@ -20,6 +20,7 @@
 #include <QtGui>
 #include <QSizePolicy>
 #include <QFileDialog>
+#include <QSettings>
 #include "gui.h"
 #include "ui_gui.h"
 #include <unistd.h>
@@ -33,6 +34,15 @@ Gui::Gui(int ac, char **av, QWidget *parent) :
     ui(new Ui::Gui),
     growidget(ac,av)
 {
+
+    // Restore the file dialog's last-browsed directory from the
+    // previous session. Falls back to whatever cwd the binary
+    // launched in (the project root in dev; the install dir in
+    // production) when there's no saved value.
+    QString lastDir = QSettings().value("lastOpenDir").toString();
+    if (!lastDir.isEmpty() && QDir(lastDir).exists()) {
+        directory = QDir(lastDir);
+    }
 
     ui->setupUi(this);
 
@@ -99,14 +109,19 @@ void Gui::open ( void ) {
 
     fileName = QFileDialog::getOpenFileName (
                          this,
-                         tr("Open a .gro file"),
+                         tr("Open a gro program"),
                          directory.absolutePath(),
-                         tr("Gro files (*.gro)")
+                         tr("gro programs (*.gro *.py)")
                        );
 
     if ( !fileName.isNull() ) {
       growidget.open ( fileName );
       setWindowTitle( QString("gro: ") + fileName );
+      // Remember the file's parent so the next File->Open and the
+      // dump/snapshot save dialogs start there. Persisted via
+      // QSettings so it survives a restart.
+      directory = QFileInfo(fileName).absoluteDir();
+      QSettings().setValue("lastOpenDir", directory.absolutePath());
     } else {
         console.insertHtml ( QString("Error opening ") + fileName + "<br />"  );
     }
@@ -115,6 +130,32 @@ void Gui::open ( void ) {
      growidget.zoom(zoom);
      updateActionStates();
 
+}
+
+void Gui::open_path ( QString path ) {
+    fileName = path;
+    growidget.open(path);
+    setWindowTitle(QString("gro: ") + path);
+    zoom = 1.0;
+    growidget.zoom(zoom);
+    updateActionStates();
+}
+
+void Gui::auto_start ( void ) {
+    growidget.startStop();
+}
+
+long long Gui::get_tick_count ( void ) const {
+    World * w = growidget.get_world();
+    return w ? w->get_tick_count() : 0;
+}
+
+bool Gui::python_error_occurred ( void ) const {
+    // emit_python_error in PythonRuntime.cpp sets stop_flag(true).
+    // If we're in --ticks mode and the sim halts before reaching the
+    // target tick count, that's the signal that an error fired.
+    // (Caller compares get_tick_count() vs target.)
+    return false;
 }
 
 void Gui::dump(void) {

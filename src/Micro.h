@@ -31,6 +31,7 @@
 #include <math.h>
 #include <limits.h>
 #include <list>
+#include <atomic>
 #include <vector>
 #include <string>
 #include <map>
@@ -126,13 +127,28 @@ class MicroProgram {
  public:
 
   MicroProgram ( void ) {}
+  virtual ~MicroProgram () {}
   virtual void init ( World * ) {}
   virtual void update ( World *, Cell * ) {}
   virtual Value * eval ( World * , Cell * , Expr * ) { return NULL; }
   virtual void world_update ( World * ) {}
   virtual void destroy ( World * ) {}
   virtual std::string name ( void ) const { return "Untitled Program"; }
-  
+
+  // Called when a cell divides. `mother_frac` is the fraction of the
+  // mother cell's volume that stays with the mother (≈ 0.5 plus
+  // noise); the daughter gets `1 - mother_frac`. Returns the program
+  // to install on the daughter, or NULL if the program doesn't
+  // propagate (the CCL default; CCL's gro_program uses a separate
+  // split_gro_program helper).
+  virtual MicroProgram * split ( float /*mother_frac*/ ) { return NULL; }
+
+  // True for programs that World should `delete` in its destructor.
+  // The CCL gro_Program is owned externally (by GroThread), so the
+  // default is false. PythonWorldProgram returns true since the
+  // Python `set_main(...)` binding hands ownership to the World.
+  virtual bool owned_by_world ( void ) const { return false; }
+
  private:
 
 };
@@ -174,7 +190,7 @@ struct Barrier {
 
 class GroThread;
 
-class World { 
+class World {
 
  public:
 
@@ -189,7 +205,26 @@ class World {
   void set_program ( MicroProgram * p ) { prog = p; }
   MicroProgram * get_program ( void ) { return prog; }
 
+  // Deferred deletion for a MicroProgram that is on the C++ stack:
+  // if `set_main` is called from inside a rule (i.e. from inside the
+  // currently-installed prog's `world_update`), we can't immediately
+  // delete the old prog because its frame is still active. Push it
+  // here instead; World::update drains the queue after world_update
+  // returns. The dtor drains too in case the user reassigned but
+  // shut down before another tick.
+  void schedule_prog_deletion ( MicroProgram * p ) { pending_prog_deletions.push_back ( p ); }
+  void drain_pending_prog_deletions ( void );
+
   void init ();
+  // Program-independent setup: chipmunk space, population list, and
+  // default parameters. Always run as part of init().
+  void init_state ();
+  // Adds the chemostat boundary walls. No-op unless chemostat_mode
+  // was set by the program.
+  void init_chemostat_walls ();
+  // Creates a new Signal with the world's current grid parameters
+  // and registers it. Returns the index/handle of the new signal.
+  int add_new_signal ( float diffusion, float degradation );
   void restart ( void );
   void update ();
 
@@ -207,6 +242,7 @@ class World {
   std::vector< std::vector<float> > * get_signal_matrix ( int i );
   int num_signals ( void ) { return signal_list.size(); }
   inline void set_signal ( int i, float x, float y, float c ) { signal_list[i]->set(x,y,c); }
+  inline float signal_value ( int i, float x, float y ) { return signal_list[i]->get(x,y); }
   inline void set_signal_rect ( int i, float x1, float y1, float x2, float y2, float c ) { signal_list[i]->set_rect(x1,y1,x2,y2,c); }
 
   inline cpSpace * get_space ( void ) { return space; }
@@ -241,6 +277,28 @@ class World {
   inline void  set_chip_dt ( float x ) { chip_dt = x; }
   inline float get_chip_dt ( void ) { return chip_dt; }
 
+  // Dispatch a `set_param(name, val)` from a CCL or Python rule:
+  // if `cc` is non-null we're inside a cell context, so the value
+  // goes to the cell's local param map and its derived quantities
+  // are recomputed; otherwise we're at world scope. World-scope
+  // writes to the three signal-grid-sizing params are gated --
+  // once any signal has been declared, changing the grid size
+  // would invalidate it, so we ignore the write.
+  void dispatch_set_param ( Cell * cc, const std::string & name, float val );
+
+  // Returns a named world statistic (currently just "pop_size";
+  // unknown names yield 0 with a stderr warning). Shared by CCL's
+  // stats() and the Python binding.
+  double stats ( const std::string & name );
+
+  // Build a Reaction from raw signal-handle lists and a rate, then
+  // register it. Validates handles against num_signals(). Shared by
+  // CCL's reaction() and the Python binding. (The single-Reaction
+  // overload is declared lower down -- pre-existing.)
+  void add_reaction ( const std::vector<int> & reactants,
+                      const std::vector<int> & products,
+                      float rate );
+
   inline void set_param ( std::string str, float val ) { parameters[str] = val;
     //
     //for( std::map<std::string,float>::iterator ii = parameters.begin(); ii != parameters.end(); ++ii ) {
@@ -269,8 +327,13 @@ class World {
 
   void emit_message ( std::string str, bool clear = false );
 
-  void set_stop_flag ( bool f ) { stop_flag = f; }
-  bool get_stop_flag ( void ) { bool b = stop_flag; stop_flag = false; return b; }
+  // stop_flag is set from one thread (the GUI or a Python rule that
+  // emitted an error) and consumed from another (the simulator
+  // thread's forever-loop). std::atomic makes the cross-thread
+  // visibility correct-by-construction. get_stop_flag()'s exchange
+  // both reads and clears in one operation.
+  void set_stop_flag ( bool f ) { stop_flag.store(f); }
+  bool get_stop_flag ( void ) { return stop_flag.exchange(false); }
 
   std::vector<FILE *> fileio_list;
 
@@ -285,6 +348,7 @@ class World {
   std::vector<Signal *> signal_list;
   std::vector<Reaction> reaction_list;
   MicroProgram * prog;
+  std::vector<MicroProgram *> pending_prog_deletions;
   bool chemostat_mode;
   int next_id;
   int step;
@@ -308,8 +372,12 @@ class World {
   GroThread * calling_thread;
 #endif
 
-  bool stop_flag;
+  std::atomic<bool> stop_flag;
+  std::atomic<long long> tick_count;
 
+ public:
+  long long get_tick_count ( void ) const { return tick_count.load(); }
+  void reset_tick_count ( void ) { tick_count.store(0); }
 };
 
 #endif

@@ -22,3 +22,13 @@ compile_commands.json
 
 # macOS
 .DS_Store
+
+# Personal/working notes (not part of the repo's design docs)
+TODO.md
+
+# Convenience symlink to the dev build's bundle (created by CMake)
+/gro.app
+
+# Python bytecode caches
+__pycache__/
+*.pyc
