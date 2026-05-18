@@ -16,6 +16,10 @@ Documentation
 Build
 ---
 
+v1.1.0+ is source-only — build it yourself. Binary releases are
+deferred. (v1.0.0 DMGs may still be floating around but are missing
+the Python frontend and recent fixes.)
+
 Requires Qt 6 and CMake 3.24+. CCL, Chipmunk2D, and pybind11 are
 fetched automatically.
 
