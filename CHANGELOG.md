@@ -1,6 +1,10 @@
 # Changelog
 
-## v1.1.0
+## v1.1.0-rc.1
+
+Source-only release candidate. Binary distribution is deferred;
+advanced users can `git checkout v1.1.0-rc.1` and build per the
+README. The final `v1.1.0` tag will land when binaries ship.
 
 Adds a Python frontend alongside the existing CCL one. A gro program
 can now be written as either a `.gro` file (CCL syntax) or a `.py`
