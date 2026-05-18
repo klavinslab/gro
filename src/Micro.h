@@ -31,6 +31,7 @@
 #include <math.h>
 #include <limits.h>
 #include <list>
+#include <atomic>
 #include <vector>
 #include <string>
 #include <map>
@@ -326,8 +327,13 @@ class World {
 
   void emit_message ( std::string str, bool clear = false );
 
-  void set_stop_flag ( bool f ) { stop_flag = f; }
-  bool get_stop_flag ( void ) { bool b = stop_flag; stop_flag = false; return b; }
+  // stop_flag is set from one thread (the GUI or a Python rule that
+  // emitted an error) and consumed from another (the simulator
+  // thread's forever-loop). std::atomic makes the cross-thread
+  // visibility correct-by-construction. get_stop_flag()'s exchange
+  // both reads and clears in one operation.
+  void set_stop_flag ( bool f ) { stop_flag.store(f); }
+  bool get_stop_flag ( void ) { return stop_flag.exchange(false); }
 
   std::vector<FILE *> fileio_list;
 
@@ -366,7 +372,7 @@ class World {
   GroThread * calling_thread;
 #endif
 
-  bool stop_flag;
+  std::atomic<bool> stop_flag;
 
 };
 

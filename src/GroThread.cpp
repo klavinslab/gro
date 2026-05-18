@@ -156,11 +156,26 @@ bool GroThread::parse ( const char * path ) {
     // .py file, during which bound functions (ecoli, signal, …) add
     // cells/signals to the world.
     if (isPythonProgram(path)) {
+        PythonRuntime & rt = PythonRuntime::instance();
+
+        // If the simulator thread is mid-run (e.g. user reloaded
+        // without pressing Stop), block until it exits its forever-
+        // loop before tearing down its World. Otherwise delete world
+        // races with World::update on the sim thread.
+        if (isRunning() && world) {
+            world->set_stop_flag(true);
+            wait();
+        }
+        // Clear the static current_world_ BEFORE deleting the old
+        // World so any errant Python callback that lands during
+        // teardown sees null (and gets a clean "no active sim
+        // world" error) rather than a freed pointer.
+        rt.setCurrentWorld(nullptr);
+
         delete world;               // drop any previous run's world
         world = new World(this);
         world->init_state();        // chipmunk space + default params
 
-        PythonRuntime & rt = PythonRuntime::instance();
         rt.setCurrentWorld(world);   // stays set for the world's lifetime
 
         std::string err;
