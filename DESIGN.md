@@ -716,21 +716,19 @@ block release if skipped.
   validators, `_PartScope` proxy. They were tested manually
   mid-session; a CI-runnable suite freezes the behavior.
 
-### Build / distribution — load-bearing for shipping
+### Build / distribution
 
-- **DMG staging.** Verify `cmake --build build --target package`
-  stages `gro.app + examples/ + include/ + python/` at the DMG top
-  level, not just `gro.app` alone. Customize CPack DMG config
-  otherwise.
-- **Code signing + notarization.** Ad-hoc signing works locally;
-  anyone outside the lab will hit Gatekeeper. Decide if v1.1.0 is
-  lab-internal or share-able; the latter needs real signing +
-  notarization.
-- **Universal binary.** Currently arm64 only; Intel Macs need a
-  rebuild on x86_64. Decide whether to support.
-- **Python 3.13 hard dependency.** `CMakeLists.txt` pins to
-  Homebrew's `python@3.13`; minor-version bumps shift the path.
-  Either document the dep or relax to "Python 3.10+".
+v1.1.0+ ships as source only -- binary releases are deferred. The
+items below are dropped from the load-bearing list and parked until
+binaries come back on the table:
+
+- DMG staging (CPack config for `gro.app + examples + include +
+  python` at the top level).
+- Code signing + notarization (Gatekeeper outside the lab).
+- Universal binary (arm64 + x86_64).
+- Python 3.13 path hard-coded in CMakeLists.txt -- works for source
+  builds where the user has 3.13 installed; revisit if we ship a
+  binary that needs a different policy.
 
 ### UX
 
