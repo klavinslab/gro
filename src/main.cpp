@@ -22,6 +22,7 @@
 #include <QApplication>
 #include <QDir>
 #include <QStandardPaths>
+#include <QTimer>
 #include <unistd.h>
 #include <signal.h>
 #include <execinfo.h>
@@ -139,7 +140,64 @@ int main(int argc, char *argv[])
     }
     Q_INIT_RESOURCE(icons);
     Gui w(argc,argv);
-    w.show();
+
+    // Headless integration-test path. `gro --load PATH --ticks N`
+    // opens PATH, starts the sim, and exits cleanly after N world
+    // ticks. Exit code 0 if the target tick count was reached, 1
+    // if the sim halted earlier (typically because a Python rule
+    // errored and set stop_flag). Combine with QT_QPA_PLATFORM=
+    // offscreen to run without a real display surface. Used by
+    // tests/test_integration.py.
+    QString loadPath;
+    long long maxTicks = -1;
+    QStringList args = a.arguments();
+    for (int i = 1; i < args.size(); i++) {
+        if (args[i] == "--load" && i + 1 < args.size()) {
+            loadPath = args[++i];
+        } else if (args[i] == "--ticks" && i + 1 < args.size()) {
+            maxTicks = args[++i].toLongLong();
+        }
+    }
+
+    // In --ticks mode the run is headless (integration tests); skip
+    // the window-show so the user doesn't see a flicker.
+    if (maxTicks <= 0) {
+        w.show();
+    }
+
+    if (!loadPath.isEmpty()) {
+        // Defer to the next event-loop spin so the window is mapped
+        // and Qt's internals are ready before we trigger the load.
+        QTimer::singleShot(0, [&w, loadPath, maxTicks]() {
+            w.open_path(loadPath);
+            if (maxTicks > 0) w.auto_start();
+        });
+    }
+
+    if (maxTicks > 0) {
+        // Poll the active World's tick counter; quit when we hit the
+        // target or when the sim halts early (e.g. set_stop_flag from
+        // a Python rule error). Exit code reflects which path.
+        auto * poll = new QTimer(&a);
+        QObject::connect(poll, &QTimer::timeout, [&w, &a, maxTicks]() {
+            long long t = w.get_tick_count();
+            if (t >= maxTicks) {
+                a.exit(0);
+                return;
+            }
+            // The sim halts (returns from run()) when stop_flag fires.
+            // If we polled the same count three times in a row with
+            // the thread not running, we know it stopped early.
+            static long long last = -1; static int stuck = 0;
+            if (t == last) {
+                if (++stuck >= 5) a.exit(1);
+            } else {
+                stuck = 0;
+                last = t;
+            }
+        });
+        poll->start(50);
+    }
 
     return a.exec();
 

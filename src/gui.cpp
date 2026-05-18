@@ -132,6 +132,32 @@ void Gui::open ( void ) {
 
 }
 
+void Gui::open_path ( QString path ) {
+    fileName = path;
+    growidget.open(path);
+    setWindowTitle(QString("gro: ") + path);
+    zoom = 1.0;
+    growidget.zoom(zoom);
+    updateActionStates();
+}
+
+void Gui::auto_start ( void ) {
+    growidget.startStop();
+}
+
+long long Gui::get_tick_count ( void ) const {
+    World * w = growidget.get_world();
+    return w ? w->get_tick_count() : 0;
+}
+
+bool Gui::python_error_occurred ( void ) const {
+    // emit_python_error in PythonRuntime.cpp sets stop_flag(true).
+    // If we're in --ticks mode and the sim halts before reaching the
+    // target tick count, that's the signal that an error fired.
+    // (Caller compares get_tick_count() vs target.)
+    return false;
+}
+
 void Gui::dump(void) {
 
     QString dumpfile = QFileDialog::getSaveFileName (

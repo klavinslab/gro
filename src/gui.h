@@ -43,6 +43,22 @@ public:
     void updateActionStates(void);
     ~Gui();
 
+    // Programmatic Open. Used by main.cpp's --load CLI flag for the
+    // headless integration test path. Same effect as picking the file
+    // in the QFileDialog.
+    void open_path(QString path);
+
+    // Auto-start the simulator (as if the user pressed Start). Used
+    // by --load + --ticks.
+    void auto_start(void);
+
+    // Live tick count from the active World, or 0 if no world yet.
+    long long get_tick_count(void) const;
+
+    // Did the sim halt because a Python rule errored? Used by
+    // --ticks to decide exit code.
+    bool python_error_occurred(void) const;
+
 public slots:
 
     void startStop ( void );

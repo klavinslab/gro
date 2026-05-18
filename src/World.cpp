@@ -39,6 +39,7 @@ World::World ( GroThread *ct ) : calling_thread ( ct ) {
     program_initialized = false;
     gro_message = "";
     stop_flag = false;
+    tick_count = 0;
     zoom = 1.0;
     barriers = new std::list<Barrier>;
 
@@ -427,6 +428,8 @@ cpVect World::chemostat_flow ( float, float y, float mag ) {
 }
 
 void World::update ( void ) {
+
+    tick_count.fetch_add(1);
 
     if ( population->size() < get_param ( "population_max" ) ) {
 

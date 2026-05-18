@@ -81,12 +81,24 @@ python3 tests/run.py -v     # verbose
 python3 tests/run.py test_compose test_strict   # specific modules
 ```
 
-`tests/_stub.py` substitutes a MagicMock `_core` so the suite runs
-without launching gro. Coverage: state schema, rule decorators,
-strict-mode AST validators, `Program.with_args`, `compose` and
-`_PartScope`, `Composed` sugar, `WorldProgram`/`set_main`/`reset`,
-and a one-test-per-file smoke check that every `examples/*.py`
-loads cleanly.
+Two layers:
+
+- **Unit tests** (~100 tests, ~50ms). `tests/_stub.py` substitutes a
+  MagicMock `_core` so these run without launching gro. Coverage:
+  state schema, rule decorators, strict-mode AST validators,
+  `Program.with_args`, `compose` and `_PartScope`, `Composed` sugar,
+  `WorldProgram`/`set_main`/`reset`, plus a one-test-per-file
+  load-time smoke check on every `examples/*.py`.
+- **Integration tests** (`tests/test_integration.py`, ~5s). Subprocess
+  the real gro binary on every example via `gro --load PATH --ticks N`
+  and assert clean exit. Catches the kind of behavioral regression
+  unit-only coverage misses (e.g. a binding signature change). Auto-
+  skips if `build/gro.app/Contents/MacOS/gro` hasn't been built.
+
+`--load PATH --ticks N` flags on the gro binary open `PATH`, run the
+simulator until `N` World ticks have elapsed, and exit cleanly. The
+window is suppressed in this mode. Exit 1 if the sim halted early
+(typically a Python rule error halting via `set_stop_flag`).
 
 
 Layout

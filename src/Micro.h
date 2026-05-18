@@ -373,7 +373,11 @@ class World {
 #endif
 
   std::atomic<bool> stop_flag;
+  std::atomic<long long> tick_count;
 
+ public:
+  long long get_tick_count ( void ) const { return tick_count.load(); }
+  void reset_tick_count ( void ) { tick_count.store(0); }
 };
 
 #endif
