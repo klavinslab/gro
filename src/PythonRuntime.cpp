@@ -92,12 +92,22 @@ public:
         : instance_(std::move(instance)) {}
 
     ~PythonProgramBase() override {
-        if (!Py_IsInitialized()) {
-            instance_.release();
-            return;
+        // A throwing destructor would terminate(). Possible sources:
+        // the user's Program __del__ raises during refcount drop, or
+        // Py_Finalize ran mid-destruction and a re-acquire faults.
+        // Swallow and report -- a leaked refcount is better than
+        // a process abort.
+        try {
+            if (!Py_IsInitialized()) {
+                instance_.release();
+                return;
+            }
+            py::gil_scoped_acquire gil;
+            instance_ = py::object();
+        } catch (...) {
+            std::cerr << "gro: exception during Python program "
+                         "destructor (suppressed)\n";
         }
-        py::gil_scoped_acquire gil;
-        instance_ = py::object();
     }
 
 protected:
@@ -308,8 +318,22 @@ PYBIND11_EMBEDDED_MODULE(_core, m) {
     });
 
     // Restart the world: kill all cells, zero signals, rebuild the
-    // chipmunk space. Equivalent to CCL's reset().
-    m.def("reset_world", []() { world()->restart(); });
+    // chipmunk space. Equivalent to CCL's reset(). Refuses to run
+    // from a cell-context rule, because World::restart() deletes the
+    // population mid-iteration of the per-cell loop and crashes on
+    // the next iterator dereference. World-program (main) rules are
+    // safe -- they fire before per-cell iteration starts. CCL
+    // shares this hazard; we surface it here as a clear error so
+    // Python users don't hit a UAF.
+    m.def("reset_world", []() {
+        if (PythonRuntime::instance().getCurrentCell() != nullptr) {
+            throw std::runtime_error(
+                "reset() called from a cell rule; only the main() "
+                "world program may call reset() (it deletes the "
+                "population that the per-cell loop is iterating).");
+        }
+        world()->restart();
+    });
 
     // ---- environment / runtime control ----
     // Toggle chemostat-mode boundary walls.
